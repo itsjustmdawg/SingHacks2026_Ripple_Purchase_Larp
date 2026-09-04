@@ -103,11 +103,6 @@ exception.
 | `XRPL_NETWORK` | XRPL network; use `testnet` during development |
 | `XRPL_RPC_URL` | Future XRPL JSON-RPC/WebSocket endpoint |
 | `XRPL_WALLET_SEED` | Future local Testnet wallet seed |
-| `POLICY_PRINCIPAL_ID` | Server-owned development principal identifier |
-| `POLICY_SPENDING_ENABLED` | Server-side emergency spending kill switch |
-| `POLICY_TRANSACTION_LIMIT_XRP` | Maximum XRP allowed per proposal |
-| `POLICY_REMAINING_BUDGET_XRP` | Static remaining development budget |
-| `POLICY_APPROVAL_THRESHOLD_XRP` | XRP amount requiring business approval |
 
 Never commit wallet seeds, private keys, or API credentials. Do not use
 production or mainnet credentials during early development.
@@ -117,7 +112,7 @@ production or mainnet credentials during early development.
 | Endpoint | Input | Current behavior |
 | --- | --- | --- |
 | `POST /api/agent` | `AgentRequest` | Delegates to the agent module and returns `501` until an agent is connected |
-| `POST /api/policy` | `PaymentProposal` | Returns a `PolicyDecision` using server-owned policy configuration |
+| `POST /api/policy` | `PaymentProposal` | Returns a `PolicyDecision` using temporary development rules |
 | `POST /api/transaction` | `TransactionRequest` | Delegates to the XRPL module and returns `501`; no transaction is submitted |
 
 The API handlers are adapters only. Business logic belongs in `src/lib/`.
