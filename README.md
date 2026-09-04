@@ -82,6 +82,10 @@ cp .env.example .env.local
 npm run dev
 ```
 
+On Windows, you can also double-click `dev.bat` from the repository root to
+install missing dependencies, create `.env.local` if needed, and start the dev
+server.
+
 Open [http://localhost:3000](http://localhost:3000). Additional checks:
 
 ```bash
