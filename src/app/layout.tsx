@@ -4,11 +4,11 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "Autonomous Agentic Payments System",
-    template: "%s | Autonomous Agentic Payments System",
+    default: "Purchase LARP — Agentic XRPL Payments",
+    template: "%s | Purchase LARP",
   },
   description:
-    "AI-driven payment decisions with policy enforcement and XRPL settlement.",
+    "Turn a purchase objective into a policy-governed, verified XRPL payment.",
 };
 
 export default function RootLayout({
