@@ -12,12 +12,12 @@ This guide explains how Python AI agents (e.g. built with LangChain, LlamaIndex,
 │   - Builds PaymentProposal              │
 └────────────────────┬────────────────────┘
                      │
-                     │ HTTP POST /api/policy (or trusted server-side check)
+                     │ HTTP POST /api/transaction with PaymentProposal
                      ▼
 ┌─────────────────────────────────────────┐
 │     TypeScript Policy Engine (Person 2) │
 │   - Enforces budget, permissions, rules │
-│   - Returns PolicyDecision (approved)   │
+│   - Re-authorizes the exact proposal    │
 └────────────────────┬────────────────────┘
                      │
                      │ HTTP POST /api/transaction
@@ -56,17 +56,21 @@ Fetch the active agent's public address and spendable balance before deciding to
 ---
 
 ### 2. `POST /api/transaction`
-Executes an approved payment on the XRP Ledger.
+Re-authorizes a complete payment proposal with server-owned policy and executes
+it on the XRP Ledger only when approved. Calling `/api/policy` first is optional
+for UI previews and does not create a reusable approval token.
 
 **Request Payload**:
 ```json
 {
-  "proposalId": "proposal-abc-123",
-  "destination": "rPT1Sjq2YGrBMTttX4GZHjKu9DYfzbpAYe",
+  "id": "proposal-abc-123",
+  "action": "payment",
+  "recipient": "rPT1Sjq2YGrBMTttX4GZHjKu9DYfzbpAYe",
   "amount": 10.5,
   "currency": "XRP",
   "reason": "Autonomous cloud storage subscription",
-  "destinationTag": 12345
+  "confidence": 0.95,
+  "createdAt": "2026-09-05T00:20:00.000Z"
 }
 ```
 
@@ -125,8 +129,10 @@ pip install httpx
 Copy and use this client in your Python agent code:
 
 ```python
+from datetime import datetime, timezone
+from typing import Any, Dict
+
 import httpx
-from typing import Optional, Dict, Any
 
 class XrplAgentServiceClient:
     def __init__(self, base_url: str = "http://localhost:3000"):
@@ -142,25 +148,25 @@ class XrplAgentServiceClient:
     def execute_payment(
         self,
         proposal_id: str,
-        destination: str,
+        recipient: str,
         amount_xrp: float,
-        reason: Optional[str] = None,
-        destination_tag: Optional[int] = None
+        reason: str,
+        confidence: float = 1.0,
     ) -> Dict[str, Any]:
         """
-        Execute an approved payment proposal on XRPL Testnet.
+        Submit a complete proposal for policy authorization and XRPL execution.
         Blocks until validated ledger confirmation (typically 3-5 seconds).
         """
         payload: Dict[str, Any] = {
-            "proposalId": proposal_id,
-            "destination": destination,
+            "id": proposal_id,
+            "action": "payment",
+            "recipient": recipient,
             "amount": amount_xrp,
             "currency": "XRP",
+            "reason": reason,
+            "confidence": confidence,
+            "createdAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         }
-        if reason:
-            payload["reason"] = reason
-        if destination_tag is not None:
-            payload["destinationTag"] = destination_tag
 
         res = self.client.post(f"{self.base_url}/api/transaction", json=payload)
         return res.json()
@@ -187,7 +193,7 @@ if __name__ == "__main__":
     print("\nExecuting payment on XRPL Testnet...")
     tx_result = xrpl.execute_payment(
         proposal_id=proposal_id,
-        destination=recipient,
+        recipient=recipient,
         amount_xrp=1.5,
         reason="Autonomous API subscription purchase"
     )

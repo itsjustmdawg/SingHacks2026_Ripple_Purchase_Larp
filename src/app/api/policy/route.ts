@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 
 import {
-  createDevelopmentPolicyContext,
+  createPolicyContextFromEnvironment,
   evaluatePaymentPolicy,
+  PolicyConfigurationError,
 } from "@/lib/policy";
+import type { PolicyEvaluationContext } from "@/types";
 
 export async function POST(request: Request) {
   let proposal: unknown;
@@ -14,12 +16,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  // This scaffold has no authentication/budget store yet. Keep development
-  // authorization facts server-owned; production must resolve real trusted
-  // context here rather than accepting it from the request body.
-  const decision = await evaluatePaymentPolicy(
-    proposal,
-    createDevelopmentPolicyContext(),
-  );
+  let context: PolicyEvaluationContext;
+  try {
+    context = createPolicyContextFromEnvironment();
+  } catch (error) {
+    if (error instanceof PolicyConfigurationError) {
+      return NextResponse.json(
+        { error: "Policy configuration is invalid.", issues: error.issues },
+        { status: 503 },
+      );
+    }
+    throw error;
+  }
+
+  // Context is resolved from server-owned configuration. Never accept budget,
+  // permission, or approval facts from the request body/model.
+  const decision = await evaluatePaymentPolicy(proposal, context);
   return NextResponse.json(decision);
 }
