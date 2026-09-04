@@ -1,7 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { Wallet } from "xrpl";
-import { buildPaymentTransaction } from "./payment";
+import { buildPaymentTransaction, submitPayment } from "./payment";
 import { decodeAuditMemo } from "./memo";
+import { setActiveWallet } from "./wallet";
+import * as clientModule from "./client";
 import { XRPL_AI_STARTER_KIT_SOURCE_TAG } from "@/config/xrpl";
 
 describe("XRPL Payment Construction", () => {
@@ -126,5 +128,144 @@ describe("XRPL Payment Construction", () => {
         SENDER,
       ),
     ).toThrow(/Invalid XRP precision/);
+  });
+});
+
+describe("submitPayment Execution", () => {
+  const SENDER_WALLET = Wallet.generate();
+  const DEST_WALLET = Wallet.generate();
+
+  beforeEach(() => {
+    setActiveWallet(SENDER_WALLET);
+  });
+
+  afterEach(() => {
+    setActiveWallet(null);
+    vi.restoreAllMocks();
+  });
+
+  it("fails gracefully with structured error when destination is invalid", async () => {
+    const mockClient = {
+      request: vi.fn().mockResolvedValue({
+        result: {
+          account_data: { Account: SENDER_WALLET.classicAddress, Balance: "1000000000", OwnerCount: 0 },
+        },
+      }),
+    };
+    vi.spyOn(clientModule, "getXrplClient").mockResolvedValue(
+      mockClient as unknown as Awaited<ReturnType<typeof clientModule.getXrplClient>>,
+    );
+
+    const result = await submitPayment({
+      proposalId: "prop-invalid-addr",
+      destination: "not-a-classic-address",
+      amount: 10,
+      currency: "XRP",
+    });
+
+    expect(result.status).toBe("failed");
+    expect(result.hash).toBeNull();
+    expect(result.error).toMatch(/Invalid XRPL destination address/);
+  });
+
+  it("successfully signs and submits payment when prerequisites and consensus succeed", async () => {
+    const mockTx = {
+      TransactionType: "Payment",
+      Account: SENDER_WALLET.classicAddress,
+      Destination: DEST_WALLET.classicAddress,
+      Amount: "10000000",
+      Fee: "12",
+      Sequence: 1,
+      LastLedgerSequence: 100,
+    };
+
+    const mockClient = {
+      request: vi.fn().mockImplementation(async (req) => {
+        if (req.account === SENDER_WALLET.classicAddress) {
+          return {
+            result: {
+              account_data: { Account: SENDER_WALLET.classicAddress, Balance: "1000000000", OwnerCount: 0 },
+            },
+          };
+        }
+        return {
+          result: {
+            account_data: { Account: DEST_WALLET.classicAddress, Balance: "100000000", OwnerCount: 0 },
+          },
+        };
+      }),
+      autofill: vi.fn().mockResolvedValue(mockTx),
+      submitAndWait: vi.fn().mockResolvedValue({
+        result: {
+          ledger_index: 94820195,
+          meta: {
+            TransactionResult: "tesSUCCESS",
+            delivered_amount: "10000000",
+          },
+        },
+      }),
+    };
+
+    vi.spyOn(clientModule, "getXrplClient").mockResolvedValue(
+      mockClient as unknown as Awaited<ReturnType<typeof clientModule.getXrplClient>>,
+    );
+
+    const result = await submitPayment({
+      proposalId: "prop-success-1",
+      destination: DEST_WALLET.classicAddress,
+      amount: 10,
+      currency: "XRP",
+      reason: "Successful mock payment",
+    });
+
+    expect(result.status).toBe("confirmed");
+    expect(result.hash).toMatch(/^[0-9A-F]{64}$/i);
+    expect(result.ledgerIndex).toBe(94820195);
+    expect(result.explorerUrl).toMatch(/^https:\/\/testnet\.xrpl\.org\/transactions\//);
+    expect(result.error).toBeNull();
+  });
+
+  it("handles on-ledger submission failure (tec code)", async () => {
+    const mockTx = {
+      TransactionType: "Payment",
+      Account: SENDER_WALLET.classicAddress,
+      Destination: DEST_WALLET.classicAddress,
+      Amount: "10000000",
+      Fee: "12",
+      Sequence: 1,
+      LastLedgerSequence: 100,
+    };
+
+    const mockClient = {
+      request: vi.fn().mockResolvedValue({
+        result: {
+          account_data: { Account: SENDER_WALLET.classicAddress, Balance: "1000000000", OwnerCount: 0 },
+        },
+      }),
+      autofill: vi.fn().mockResolvedValue(mockTx),
+      submitAndWait: vi.fn().mockResolvedValue({
+        result: {
+          ledger_index: 94820198,
+          meta: {
+            TransactionResult: "tecUNFUNDED_PAYMENT",
+          },
+        },
+      }),
+    };
+
+    vi.spyOn(clientModule, "getXrplClient").mockResolvedValue(
+      mockClient as unknown as Awaited<ReturnType<typeof clientModule.getXrplClient>>,
+    );
+
+    const result = await submitPayment({
+      proposalId: "prop-failed-onledger",
+      destination: DEST_WALLET.classicAddress,
+      amount: 10,
+      currency: "XRP",
+    });
+
+    expect(result.status).toBe("failed");
+    expect(result.hash).toMatch(/^[0-9A-F]{64}$/i);
+    expect(result.error).toMatch(/tecUNFUNDED_PAYMENT/);
   });
 });

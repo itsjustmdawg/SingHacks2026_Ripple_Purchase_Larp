@@ -24,4 +24,5 @@ export {
   submitPayment,
 } from "./payment";
 
+export type { VerifiedTransactionDetails } from "./verify";
 export { verifyTransaction } from "./verify";

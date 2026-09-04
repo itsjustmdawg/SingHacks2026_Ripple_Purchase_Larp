@@ -5,11 +5,11 @@ import {
   type Client,
   type Wallet,
 } from "xrpl";
-import { XRPL_AI_STARTER_KIT_SOURCE_TAG } from "@/config/xrpl";
+import { XRPL_AI_STARTER_KIT_SOURCE_TAG, getXrplConfig } from "@/config/xrpl";
+import { getXrplClient } from "./client";
 import { buildAuditMemo } from "./memo";
-import { getWalletInfo } from "./wallet";
+import { getActiveWallet, getWalletInfo } from "./wallet";
 import type { TransactionRequest, TransactionResult } from "@/types";
-import { NotImplementedError } from "@/lib/utils";
 
 export interface ExtendedTransactionRequest extends TransactionRequest {
   reason?: string;
@@ -129,14 +129,122 @@ export async function validatePaymentPrerequisites(
 }
 
 /**
- * Submits a policy-approved request to XRPL.
- * Signing and submission execution logic is scheduled for Phase 4.
+ * Executes a full agentic payment on the XRP Ledger:
+ * 1. Resolves active client & wallet.
+ * 2. Runs pre-flight ledger balance & destination checks.
+ * 3. Builds Payment transaction with drops, SourceTag, and audit Memo.
+ * 4. Autofills network fee, sequence, and last ledger sequence.
+ * 5. Signs locally offline and captures transaction hash before submission.
+ * 6. Submits to XRPL and waits for validated consensus closing (submitAndWait).
+ * 7. Returns structured TransactionResult with verified status and explorer URL.
  */
 export async function submitPayment(
-  request: TransactionRequest,
+  request: ExtendedTransactionRequest,
 ): Promise<TransactionResult> {
-  void request;
-  throw new NotImplementedError(
-    "XRPL payment submission is not implemented. No transaction was signed or submitted.",
-  );
+  const transactionId = `tx-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+  const config = getXrplConfig();
+
+  let client: Client;
+  let wallet: Wallet;
+
+  try {
+    client = await getXrplClient();
+    wallet = await getActiveWallet();
+  } catch (initErr) {
+    return {
+      transactionId,
+      proposalId: request.proposalId,
+      status: "failed",
+      hash: null,
+      ledgerIndex: null,
+      explorerUrl: null,
+      submittedAt: null,
+      confirmedAt: null,
+      error: `Failed to initialize XRPL client or agent wallet: ${initErr instanceof Error ? initErr.message : String(initErr)}`,
+    };
+  }
+
+  try {
+    await validatePaymentPrerequisites(client, wallet, request);
+  } catch (preflightErr) {
+    return {
+      transactionId,
+      proposalId: request.proposalId,
+      status: "failed",
+      hash: null,
+      ledgerIndex: null,
+      explorerUrl: null,
+      submittedAt: null,
+      confirmedAt: null,
+      error: preflightErr instanceof Error ? preflightErr.message : String(preflightErr),
+    };
+  }
+
+  let signedHash: string | null = null;
+  let submittedAt: string | null = null;
+
+  try {
+    const rawPayment = buildPaymentTransaction(request, wallet.classicAddress);
+    const autofilledTx = await client.autofill(rawPayment);
+
+    // Step 5: Local signing ceremony
+    const signed = wallet.sign(autofilledTx);
+    signedHash = signed.hash;
+    submittedAt = new Date().toISOString();
+
+    // Step 6: Validated consensus submission (blocks until ledger close ~3-5s)
+    const response = await client.submitAndWait(signed.tx_blob);
+    const result = response.result;
+    const meta = result.meta;
+
+    const txResultCode =
+      typeof meta === "object" && meta !== null && "TransactionResult" in meta
+        ? (meta.TransactionResult as string)
+        : "unknown";
+
+    const ledgerIndex =
+      typeof result.ledger_index === "number" ? result.ledger_index : null;
+    const explorerUrl = `${config.explorerTxBaseUrl}${signedHash}`;
+    const confirmedAt = new Date().toISOString();
+
+    if (txResultCode === "tesSUCCESS") {
+      return {
+        transactionId,
+        proposalId: request.proposalId,
+        status: "confirmed",
+        hash: signedHash,
+        ledgerIndex,
+        explorerUrl,
+        submittedAt,
+        confirmedAt,
+        error: null,
+      };
+    } else {
+      return {
+        transactionId,
+        proposalId: request.proposalId,
+        status: "failed",
+        hash: signedHash,
+        ledgerIndex,
+        explorerUrl,
+        submittedAt,
+        confirmedAt,
+        error: `XRPL transaction failed on-ledger with result code: ${txResultCode}`,
+      };
+    }
+  } catch (submitErr) {
+    const errorMessage =
+      submitErr instanceof Error ? submitErr.message : String(submitErr);
+    return {
+      transactionId,
+      proposalId: request.proposalId,
+      status: "failed",
+      hash: signedHash,
+      ledgerIndex: null,
+      explorerUrl: signedHash ? `${config.explorerTxBaseUrl}${signedHash}` : null,
+      submittedAt,
+      confirmedAt: null,
+      error: `Submission failed: ${errorMessage}`,
+    };
+  }
 }
