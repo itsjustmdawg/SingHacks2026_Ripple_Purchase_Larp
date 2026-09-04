@@ -4,7 +4,7 @@ An AI-assisted payment workflow that turns a user objective into a structured
 proposal, evaluates it through an independent policy engine, settles approved
 payments on the XRP Ledger (XRPL), and presents verifiable on-chain proof.
 
-> This repository is an initial architecture scaffold. AI inference, wallet
+> Agent intent extraction and policy evaluation are implemented. Wallet
 > management, XRPL submission, and ledger verification are intentionally not
 > implemented yet.
 
@@ -99,7 +99,9 @@ exception.
 
 | Variable | Purpose |
 | --- | --- |
-| `LLM_API_KEY` | Future model provider credential |
+| `LLM_API_KEY` | Optional OpenAI API key for model-backed intent extraction |
+| `LLM_MODEL` | OpenAI model ID; defaults to `gpt-5.6-luna` |
+| `LLM_BASE_URL` | Optional OpenAI-compatible API base URL override |
 | `XRPL_NETWORK` | XRPL network; use `testnet` during development |
 | `XRPL_RPC_URL` | Future XRPL JSON-RPC/WebSocket endpoint |
 | `XRPL_WALLET_SEED` | Future local Testnet wallet seed |
@@ -111,7 +113,7 @@ production or mainnet credentials during early development.
 
 | Endpoint | Input | Current behavior |
 | --- | --- | --- |
-| `POST /api/agent` | `AgentRequest` | Delegates to the agent module and returns `501` until an agent is connected |
+| `POST /api/agent` | `AgentRequest` | Returns a structured proposal using the configured model or deterministic fallback |
 | `POST /api/policy` | `PaymentProposal` | Returns a `PolicyDecision` using temporary development rules |
 | `POST /api/transaction` | `PaymentProposal` | Re-authorizes the proposal server-side, then submits approved XRP payments |
 
