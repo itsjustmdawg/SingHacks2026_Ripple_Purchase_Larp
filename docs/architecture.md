@@ -34,9 +34,10 @@ already been approved. It does not decide whether a user's objective is valid.
 They call API boundaries rather than embedding agent, policy, or XRPL business
 logic.
 
-## Current scaffold behavior
+## Current implementation status
 
-The agent and XRPL services throw explicit not-implemented errors. Their API
-routes translate those errors into HTTP `501` responses. The policy engine uses
-small, clearly marked development rules so its integration boundary can be
-tested without claiming production authorization behavior.
+The agent validates requests and creates structured proposals using either the
+configured OpenAI model or a deterministic direct-payment extractor. The policy
+engine evaluates proposals against payment safety, budget, permission, and
+approval rules. The XRPL service still throws explicit not-implemented errors,
+and its API route translates them into HTTP `501` responses.

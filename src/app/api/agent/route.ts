@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 
-import { createPaymentProposal } from "@/lib/agent";
-import { NotImplementedError } from "@/lib/utils";
+import {
+  AgentRequestValidationError,
+  createConfiguredAgentModel,
+  createPaymentProposal,
+} from "@/lib/agent";
 import type { AgentRequest } from "@/types";
 
 export async function POST(request: Request) {
@@ -14,11 +17,16 @@ export async function POST(request: Request) {
   }
 
   try {
-    const proposal = await createPaymentProposal(agentRequest);
+    const proposal = await createPaymentProposal(agentRequest, {
+      model: createConfiguredAgentModel(),
+    });
     return NextResponse.json(proposal);
   } catch (error) {
-    if (error instanceof NotImplementedError) {
-      return NextResponse.json({ error: error.message }, { status: 501 });
+    if (error instanceof AgentRequestValidationError) {
+      return NextResponse.json(
+        { error: error.message, issues: error.issues },
+        { status: 400 },
+      );
     }
 
     return NextResponse.json(
