@@ -22,6 +22,9 @@ authorize payments or access wallets.
 
 `src/lib/policy/` evaluates only structured proposals. It remains deterministic
 and independent of the model, and it never submits transactions.
+`authorizePaymentProposal()` is the server-side handoff: it snapshots and
+evaluates an untrusted proposal, then derives a transaction request only after
+all policy rules approve that exact snapshot.
 
 ### Execution
 
