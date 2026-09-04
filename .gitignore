@@ -26,5 +26,9 @@ pnpm-debug.log*
 .DS_Store
 *.pem
 
-# Agent Skills
+# Local agent config and skills
+.codex
 .agents
+
+# Local Python tooling
+.venv
