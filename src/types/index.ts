@@ -6,7 +6,16 @@ export type {
   PaymentProposal,
   SupportedCurrency,
 } from "./agent";
-export type { PolicyDecision, PolicyRuleResult } from "./policy";
+export type {
+  HumanApprovalPolicy,
+  PaymentApproval,
+  PolicyDecision,
+  PolicyEvaluationContext,
+  PolicyPermission,
+  PolicyPrincipal,
+  PolicyRuleResult,
+  SpendingBudget,
+} from "./policy";
 export type {
   TransactionRequest,
   TransactionResult,

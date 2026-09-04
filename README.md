@@ -87,6 +87,7 @@ Open [http://localhost:3000](http://localhost:3000). Additional checks:
 ```bash
 npm run lint
 npm run typecheck
+npm test
 npm run build
 ```
 
