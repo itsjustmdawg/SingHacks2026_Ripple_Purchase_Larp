@@ -1,65 +1,54 @@
 import { NextResponse } from "next/server";
+import {
+  authorizePaymentProposal,
+  createPolicyContextFromEnvironment,
+  PolicyConfigurationError,
+} from "@/lib/policy";
 import { submitPayment, verifyTransaction } from "@/lib/xrpl";
-import type { ExtendedTransactionRequest } from "@/lib/xrpl";
 
 export async function POST(request: Request) {
-  let body: unknown;
+  let proposal: unknown;
 
   try {
-    body = await request.json();
+    proposal = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  if (!body || typeof body !== "object") {
-    return NextResponse.json(
-      { error: "Request body must be a JSON object." },
-      { status: 400 },
-    );
+  let context;
+  try {
+    context = createPolicyContextFromEnvironment();
+  } catch (error) {
+    if (error instanceof PolicyConfigurationError) {
+      return NextResponse.json(
+        { error: "Policy configuration is invalid.", issues: error.issues },
+        { status: 503 },
+      );
+    }
+    throw error;
   }
 
-  const req = body as Partial<ExtendedTransactionRequest>;
-
-  if (!req.proposalId || typeof req.proposalId !== "string" || !req.proposalId.trim()) {
+  // Re-authorize the exact client/model-authored proposal at the execution
+  // boundary. Never accept an approval flag or TransactionRequest from a caller.
+  const authorization = await authorizePaymentProposal(proposal, context);
+  if (!authorization.authorized) {
     return NextResponse.json(
-      { error: "Missing or invalid required field: 'proposalId' must be a non-empty string." },
-      { status: 400 },
-    );
-  }
-
-  if (!req.destination || typeof req.destination !== "string" || !req.destination.trim()) {
-    return NextResponse.json(
-      { error: "Missing or invalid required field: 'destination' must be a non-empty classic address string." },
-      { status: 400 },
-    );
-  }
-
-  if (typeof req.amount !== "number" || !Number.isFinite(req.amount) || req.amount <= 0) {
-    return NextResponse.json(
-      { error: "Missing or invalid required field: 'amount' must be a positive finite number." },
-      { status: 400 },
-    );
-  }
-
-  if (req.currency !== "XRP") {
-    return NextResponse.json(
-      { error: "Unsupported currency: only 'XRP' is currently supported." },
-      { status: 400 },
+      {
+        error: "Payment denied by policy.",
+        policyDecision: authorization.decision,
+      },
+      { status: 403 },
     );
   }
 
   try {
-    const result = await submitPayment({
-      proposalId: req.proposalId.trim(),
-      destination: req.destination.trim(),
-      amount: req.amount,
-      currency: "XRP",
-      reason: typeof req.reason === "string" ? req.reason : undefined,
-      destinationTag: typeof req.destinationTag === "number" ? req.destinationTag : undefined,
-    });
+    const result = await submitPayment(authorization.transactionRequest);
 
     const httpStatus = result.status === "confirmed" ? 200 : 422;
-    return NextResponse.json(result, { status: httpStatus });
+    return NextResponse.json(
+      { ...result, policyDecision: authorization.decision },
+      { status: httpStatus },
+    );
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unable to submit the transaction.";

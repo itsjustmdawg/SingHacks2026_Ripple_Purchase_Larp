@@ -30,6 +30,10 @@ all policy rules approve that exact snapshot.
 
 `src/lib/xrpl/` constructs, signs, submits, and verifies only requests that have
 already been approved. It does not decide whether a user's objective is valid.
+`POST /api/transaction` accepts a complete `PaymentProposal`, evaluates it with
+server-owned policy context, and derives the exact XRPL request only after that
+same immutable proposal snapshot is approved. Client-authored approval flags or
+transaction requests are rejected.
 
 ### Presentation
 
@@ -37,9 +41,10 @@ already been approved. It does not decide whether a user's objective is valid.
 They call API boundaries rather than embedding agent, policy, or XRPL business
 logic.
 
-## Current scaffold behavior
+## Current implementation
 
-The agent and XRPL services throw explicit not-implemented errors. Their API
-routes translate those errors into HTTP `501` responses. The policy engine uses
-small, clearly marked development rules so its integration boundary can be
-tested without claiming production authorization behavior.
+The deterministic agent and optional OpenAI-backed planner create proposals,
+the policy layer authorizes them, and the XRPL service signs, submits, and
+verifies XRP payments. The default configuration targets XRPL Testnet. The
+environment-backed development policy must be replaced by authenticated,
+transactional identity, budget, and approval storage before production use.

@@ -113,7 +113,7 @@ production or mainnet credentials during early development.
 | --- | --- | --- |
 | `POST /api/agent` | `AgentRequest` | Delegates to the agent module and returns `501` until an agent is connected |
 | `POST /api/policy` | `PaymentProposal` | Returns a `PolicyDecision` using temporary development rules |
-| `POST /api/transaction` | `TransactionRequest` | Delegates to the XRPL module and returns `501`; no transaction is submitted |
+| `POST /api/transaction` | `PaymentProposal` | Re-authorizes the proposal server-side, then submits approved XRP payments |
 
 The API handlers are adapters only. Business logic belongs in `src/lib/`.
 

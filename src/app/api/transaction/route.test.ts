@@ -4,8 +4,20 @@ import * as xrplModule from "@/lib/xrpl";
 import type { TransactionResult } from "@/types";
 
 describe("Transaction API Routes (/api/transaction)", () => {
+  const proposal = {
+    id: "prop-123",
+    action: "payment",
+    recipient: "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh",
+    amount: 10,
+    currency: "XRP",
+    reason: "Pay for approved infrastructure.",
+    confidence: 0.95,
+    createdAt: "2026-09-05T00:00:00.000Z",
+  };
+
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   describe("POST /api/transaction", () => {
@@ -21,7 +33,8 @@ describe("Transaction API Routes (/api/transaction)", () => {
       expect(data.error).toBe("Invalid JSON body.");
     });
 
-    it("returns 400 when required fields are missing", async () => {
+    it("denies malformed proposals before XRPL submission", async () => {
+      const submit = vi.spyOn(xrplModule, "submitPayment");
       const request = new Request("http://localhost:3000/api/transaction", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -29,12 +42,15 @@ describe("Transaction API Routes (/api/transaction)", () => {
       });
 
       const response = await POST(request);
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(403);
       const data = await response.json();
-      expect(data.error).toMatch(/proposalId/);
+      expect(data.error).toBe("Payment denied by policy.");
+      expect(data.policyDecision.approved).toBe(false);
+      expect(submit).not.toHaveBeenCalled();
     });
 
-    it("returns 400 for unsupported currency", async () => {
+    it("does not trust a caller-authored approval or transaction request", async () => {
+      const submit = vi.spyOn(xrplModule, "submitPayment");
       const request = new Request("http://localhost:3000/api/transaction", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -42,14 +58,16 @@ describe("Transaction API Routes (/api/transaction)", () => {
           proposalId: "p1",
           destination: "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh",
           amount: 10,
-          currency: "USD",
+          currency: "XRP",
+          approved: true,
         }),
       });
 
       const response = await POST(request);
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(403);
       const data = await response.json();
-      expect(data.error).toMatch(/Unsupported currency/);
+      expect(data.policyDecision.approved).toBe(false);
+      expect(submit).not.toHaveBeenCalled();
     });
 
     it("submits payment and returns 200 on confirmed result", async () => {
@@ -70,12 +88,7 @@ describe("Transaction API Routes (/api/transaction)", () => {
       const request = new Request("http://localhost:3000/api/transaction", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          proposalId: "prop-123",
-          destination: "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh",
-          amount: 10,
-          currency: "XRP",
-        }),
+        body: JSON.stringify(proposal),
       });
 
       const response = await POST(request);
@@ -83,12 +96,20 @@ describe("Transaction API Routes (/api/transaction)", () => {
       const data = await response.json();
       expect(data.status).toBe("confirmed");
       expect(data.hash).toBe("A1B2C3D4");
+      expect(data.policyDecision.approved).toBe(true);
+      expect(xrplModule.submitPayment).toHaveBeenCalledWith({
+        proposalId: proposal.id,
+        destination: proposal.recipient,
+        amount: proposal.amount,
+        currency: "XRP",
+        reason: proposal.reason,
+      });
     });
 
     it("returns 422 when payment submission fails on-ledger", async () => {
       const mockFailedResult: TransactionResult = {
         transactionId: "tx-fail",
-        proposalId: "prop-fail",
+        proposalId: proposal.id,
         status: "failed",
         hash: "FAIL123",
         ledgerIndex: 12345,
@@ -103,12 +124,7 @@ describe("Transaction API Routes (/api/transaction)", () => {
       const request = new Request("http://localhost:3000/api/transaction", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          proposalId: "prop-fail",
-          destination: "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh",
-          amount: 10,
-          currency: "XRP",
-        }),
+        body: JSON.stringify(proposal),
       });
 
       const response = await POST(request);
@@ -116,6 +132,20 @@ describe("Transaction API Routes (/api/transaction)", () => {
       const data = await response.json();
       expect(data.status).toBe("failed");
       expect(data.error).toBe("tecUNFUNDED_PAYMENT");
+    });
+
+    it("fails closed when server policy configuration is invalid", async () => {
+      vi.stubEnv("POLICY_TRANSACTION_LIMIT_XRP", "invalid");
+      const submit = vi.spyOn(xrplModule, "submitPayment");
+      const request = new Request("http://localhost:3000/api/transaction", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(proposal),
+      });
+
+      const response = await POST(request);
+      expect(response.status).toBe(503);
+      expect(submit).not.toHaveBeenCalled();
     });
   });
 
