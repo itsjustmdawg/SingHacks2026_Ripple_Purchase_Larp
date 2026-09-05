@@ -25,6 +25,7 @@ import { getActiveWallet, getWalletInfo } from "./wallet";
 export const RIPPLE_EPOCH_OFFSET = 946684800;
 export const DEFAULT_CANCEL_AFTER_SECONDS = 300; // 5 minutes standard
 export const PITCH_DEMO_CANCEL_AFTER_SECONDS = 30; // 30 seconds for live pitch demo
+export const ESCROW_FINISH_AFTER_BUFFER_SECONDS = 12; // Forward cushion to ensure consensus close_time < FinishAfter
 
 export function unixToRippleTime(unixSeconds: number): number {
   return Math.floor(unixSeconds) - RIPPLE_EPOCH_OFFSET;
@@ -36,8 +37,8 @@ export function rippleTimeToUnix(rippleSeconds: number): number {
 
 /**
  * Builds an unsigned XRPL EscrowCreate transaction object.
- * FinishAfter is given a 5-second forward cushion so it is strictly in the future
- * when ledger consensus closes, preventing tecNO_PERMISSION.
+ * FinishAfter is given a forward cushion (ESCROW_FINISH_AFTER_BUFFER_SECONDS)
+ * so it is strictly in the future when ledger consensus closes, preventing tecNO_PERMISSION.
  */
 export function buildEscrowCreateTransaction(
   request: EscrowCreateRequest,
@@ -81,7 +82,7 @@ export function buildEscrowCreateTransaction(
       : unixToRippleTime(Math.floor(Date.now() / 1000));
 
   // In XRPL EscrowCreate, FinishAfter MUST be strictly in the future when consensus closes.
-  const finishAfterRipple = currentRippleSec + 5;
+  const finishAfterRipple = currentRippleSec + ESCROW_FINISH_AFTER_BUFFER_SECONDS;
   const cancelAfterRipple = Math.max(
     finishAfterRipple + 5,
     currentRippleSec + cancelSeconds,
@@ -290,7 +291,10 @@ export async function submitEscrowCreate(
       });
       const closeTime = (ledgerRes.result as { ledger?: { close_time?: number } }).ledger?.close_time;
       if (typeof closeTime === "number") {
-        liveLedgerRippleTime = closeTime;
+        // XRPL consensus rule: FinishAfter MUST be strictly in the future relative to the closing ledger.
+        // Since the validated ledger closed in the past, take the latest of validated close time and current wall clock.
+        const currentWallRipple = unixToRippleTime(Math.floor(nowEpochMs / 1000));
+        liveLedgerRippleTime = Math.max(closeTime, currentWallRipple);
       }
     } catch {
       // Graceful fallback to nowEpochMs if ledger command is mocked or unavailable
@@ -348,6 +352,11 @@ export async function submitEscrowCreate(
       };
     }
 
+    const errorMsg =
+      txResultCode === "tecNO_PERMISSION"
+        ? "XRPL EscrowCreate failed on-ledger with result code: tecNO_PERMISSION (consensus close_time passed FinishAfter or account restrictions apply)."
+        : `XRPL EscrowCreate failed on-ledger with result code: ${txResultCode}`;
+
     return {
       transactionId,
       proposalId: request.proposalId,
@@ -358,7 +367,7 @@ export async function submitEscrowCreate(
       explorerUrl,
       submittedAt,
       confirmedAt,
-      error: `XRPL EscrowCreate failed on-ledger with result code: ${txResultCode}`,
+      error: errorMsg,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -413,6 +422,45 @@ export async function submitEscrowFinish(
   let submittedAt: string | null = null;
 
   try {
+    // Pre-flight consensus sync: XRPL rejects EscrowFinish with tecNO_PERMISSION if ledger_close_time < FinishAfter
+    try {
+      const owner = request.ownerAddress || wallet.classicAddress;
+      const objectsRes = await client.request({
+        command: "account_objects",
+        account: owner,
+        type: "escrow",
+        ledger_index: "validated",
+      });
+      const escrowObj = (
+        objectsRes.result as {
+          account_objects?: Array<{ Sequence?: number; FinishAfter?: number }>;
+        }
+      ).account_objects?.find(
+        (obj) => obj.Sequence === request.escrowSequence,
+      );
+
+      if (escrowObj && typeof escrowObj.FinishAfter === "number") {
+        const ledgerRes = await client.request({
+          command: "ledger",
+          ledger_index: "validated",
+        });
+        const currentClose = (
+          ledgerRes.result as { ledger?: { close_time?: number } }
+        ).ledger?.close_time;
+        if (
+          typeof currentClose === "number" &&
+          currentClose < escrowObj.FinishAfter
+        ) {
+          const waitSec = Math.min(10, escrowObj.FinishAfter - currentClose + 1);
+          if (waitSec > 0) {
+            await new Promise((resolve) => setTimeout(resolve, waitSec * 1000));
+          }
+        }
+      }
+    } catch {
+      // If ledger query fails or is mocked in unit tests, proceed directly with submission
+    }
+
     const tx = buildEscrowFinishTransaction(request, wallet.classicAddress);
     const autofilled = await client.autofill(tx);
 
@@ -517,6 +565,61 @@ export async function submitEscrowCancel(
   let submittedAt: string | null = null;
 
   try {
+    // Check on-ledger escrow expiration before submitting cancel
+    try {
+      const owner = request.ownerAddress || wallet.classicAddress;
+      const objectsRes = await client.request({
+        command: "account_objects",
+        account: owner,
+        type: "escrow",
+        ledger_index: "validated",
+      });
+      const escrowObj = (
+        objectsRes.result as {
+          account_objects?: Array<{ Sequence?: number; CancelAfter?: number }>;
+        }
+      ).account_objects?.find(
+        (obj) => obj.Sequence === request.escrowSequence,
+      );
+
+      if (escrowObj && typeof escrowObj.CancelAfter === "number") {
+        const ledgerRes = await client.request({
+          command: "ledger",
+          ledger_index: "validated",
+        });
+        const currentClose = (
+          ledgerRes.result as { ledger?: { close_time?: number } }
+        ).ledger?.close_time;
+        if (
+          typeof currentClose === "number" &&
+          currentClose < escrowObj.CancelAfter
+        ) {
+          const waitSec = escrowObj.CancelAfter - currentClose;
+          if (waitSec > 0 && waitSec <= 5) {
+            await new Promise((resolve) =>
+              setTimeout(resolve, (waitSec + 1) * 1000),
+            );
+          } else if (waitSec > 5) {
+            return {
+              transactionId,
+              proposalId: request.proposalId,
+              status: "failed",
+              escrowStatus: "failed",
+              escrowSequence: request.escrowSequence,
+              hash: null,
+              ledgerIndex: null,
+              explorerUrl: null,
+              submittedAt: null,
+              confirmedAt: null,
+              error: `Escrow safe has not reached expiration yet. On-ledger refund lock expires in ${waitSec}s.`,
+            };
+          }
+        }
+      }
+    } catch {
+      // Proceed to submit if query fails or is mocked
+    }
+
     const tx = buildEscrowCancelTransaction(request, wallet.classicAddress);
     const autofilled = await client.autofill(tx);
 

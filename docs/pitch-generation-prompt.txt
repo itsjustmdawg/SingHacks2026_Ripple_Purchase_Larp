@@ -92,8 +92,8 @@ FACTS THE DECK MAY CLAIM
 - The product includes a login, marketplace, agent profiles, launch flow, procurement workspace, recovery states, and receipt/activity views.
 - Google Search grounding is implemented, but the current API project rejected verified live use because quota/account access was unavailable.
 - When grounding is rejected for a supported category, the app now safely switches to a clearly labelled XRPL Testnet sample catalogue instead of presenting invented web results.
-- The latest verified local suite contains 287 passing automated tests, plus passing typecheck, lint, production build, and the exact “gaming chair, not more than 200 SGD” hosted fallback check.
-- “287 tests passing” does not mean measured 100% coverage.
+- The latest verified local suite contains 288 passing automated tests, plus passing typecheck, lint, production build, and the exact “gaming chair, not more than 200 SGD” hosted fallback check.
+- “288 tests passing” does not mean measured 100% coverage.
 - Production demo: https://purchase-larp.vercel.app
 
 HONEST TECHNICAL BOUNDARIES
@@ -174,7 +174,7 @@ Visible evidence:
 “XRPL Testnet”
 “Validated-ledger checks”
 “Audit memos + SourceTag”
-“287 automated tests passing”
+“288 automated tests passing”
 “purchase-larp.vercel.app”
 Visual: a premium proof montage with a real supplied UI crop and real supplied explorer proof only. If proof assets are unavailable, use typographic evidence and the live URL—do not invent transaction artifacts.
 Speaker purpose: state precisely what is implemented and invite judges into the demo.

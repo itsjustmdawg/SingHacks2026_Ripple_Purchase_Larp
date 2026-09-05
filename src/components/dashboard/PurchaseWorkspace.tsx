@@ -112,6 +112,7 @@ export function PurchaseWorkspace({
   const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
 
   const lock = useRef(false);
+  const autoCancelAttempted = useRef<string | null>(null);
 
   useEffect(() => {
     const restore = () => {
@@ -164,6 +165,33 @@ export function PurchaseWorkspace({
     const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
   }, [escrowResult?.cancelAfterIso]);
+
+  // While this page remains open, submit the required cancellation transaction
+  // when the ledger deadline arrives. Timeout alone does not move funds.
+  useEffect(() => {
+    const attemptKey =
+      result?.proposal && escrowResult?.escrowSequence
+        ? `${result.proposal.id}:${escrowResult.escrowSequence}`
+        : null;
+    if (
+      secondsRemaining === 0 &&
+      !uncertain &&
+      attemptKey &&
+      autoCancelAttempted.current !== attemptKey &&
+      (escrowPhase === "locked" || escrowPhase === "delivered") &&
+      !lock.current
+    ) {
+      autoCancelAttempted.current = attemptKey;
+      void cancelEscrow(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    secondsRemaining,
+    uncertain,
+    result?.proposal,
+    escrowResult?.escrowSequence,
+    escrowPhase,
+  ]);
 
   async function loadWallet() {
     setWalletLoading(true);
@@ -637,6 +665,7 @@ export function PurchaseWorkspace({
       });
       clearPendingPayment();
       setUncertain(false);
+      setEscrowPhase("delivering");
       void loadWallet();
       try {
         const delivered = await purchaseService.deliver(
@@ -653,6 +682,7 @@ export function PurchaseWorkspace({
           delivery: delivered,
         });
       } catch {
+        setEscrowPhase("locked");
         setDeliveryReceipt({
           credentialId: "mock-unavailable",
           accessKey: "",
@@ -740,15 +770,21 @@ export function PurchaseWorkspace({
     setEscrowPhase("cancelling");
     setError("");
     setNextStep("");
-    if (simulateGhosting)
+    if (
+      simulateGhosting ||
+      !deliveryReceipt ||
+      deliveryReceipt.status !== "delivered"
+    )
       setDeliveryReceipt({
-        credentialId: "mock-ghost",
+        credentialId: deliveryReceipt?.credentialId ?? `timeout-${Date.now()}`,
         accessKey: "",
-        serviceEndpoint: "",
+        serviceEndpoint:
+          deliveryReceipt?.serviceEndpoint ??
+          "https://offline-vendor.mock/timeout",
         deliveredAt: new Date().toISOString(),
         status: "failed",
         details:
-          "Simulated non-delivery; requesting cancellation after the deadline.",
+          "Non-delivery recorded. The application is submitting the required XRPL cancellation transaction after the deadline.",
       });
     try {
       const res = await purchaseService.cancelEscrow(
@@ -766,6 +802,15 @@ export function PurchaseWorkspace({
       setEscrowResult(res);
       setEscrowPhase("cancelled");
       setPhase("confirmed");
+      setDeliveryReceipt((previous) =>
+        previous
+          ? {
+              ...previous,
+              details:
+                "XRPL cancellation confirmed. Escrow principal returned; network fees are not refunded.",
+            }
+          : previous,
+      );
       const r: Receipt = { ...pending, ...res };
       setReceipt(r);
       saveReceipt(r);
@@ -1251,8 +1296,8 @@ export function PurchaseWorkspace({
                           margin: "8px 0 0",
                         }}
                       >
-                        Locked on XRPL. Auto-refunds if seller ghosts or
-                        delivery fails.
+                        Locked on XRPL. The app can submit cancellation after
+                        the deadline while this page remains open.
                       </p>
                     </button>
 
@@ -1316,7 +1361,7 @@ export function PurchaseWorkspace({
                       }}
                     >
                       <span style={{ color: "var(--muted)" }}>
-                        Request refund Guarantee Window:
+                        Cancellation eligibility window:
                       </span>
                       <div style={{ display: "flex", gap: 8 }}>
                         <button
@@ -1505,14 +1550,16 @@ export function PurchaseWorkspace({
                           fontWeight: 600,
                           fontFamily: "monospace",
                           color:
-                            secondsRemaining === 0
+                            secondsRemaining === 0 || escrowPhase === "cancelling"
                               ? "var(--orange)"
                               : "var(--amber)",
                         }}
                       >
-                        {secondsRemaining !== null
-                          ? `${secondsRemaining}s`
-                          : "—"}
+                        {escrowPhase === "cancelling"
+                          ? "Refunding…"
+                          : secondsRemaining !== null
+                            ? `${secondsRemaining}s`
+                            : "—"}
                       </div>
                     </div>
                   </div>
