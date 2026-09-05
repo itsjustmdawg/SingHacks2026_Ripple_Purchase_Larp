@@ -1410,6 +1410,37 @@ h2 > span {
   width: 100%;
   padding: 15px;
 }
+.password-field {
+  position: relative;
+  display: block;
+}
+.password-field input {
+  padding-right: 50px;
+}
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  transition:
+    color 0.2s,
+    background 0.2s,
+    border-color 0.2s;
+}
+.password-toggle:hover,
+.password-toggle[aria-pressed="true"] {
+  color: var(--amber);
+  background: #ffffff08;
+  border-color: var(--line);
+}
 .field textarea {
   resize: vertical;
   line-height: 1.6;
