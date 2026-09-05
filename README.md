@@ -2,6 +2,8 @@
 
 An AI-native multi-agent procurement system that transforms natural-language user objectives into structured catalog discovery, rigorous multi-quote analysis, deterministic policy-governed approval, and cryptographic settlement on the XRP Ledger (XRPL) with native Escrows and on-chain audit trails.
 
+Live Web-app: https://purchase-larp.vercel.app/
+
 Built for **SingHacks 2026** — *Problem Statement: Ripple — AI-Native Business on XRPL*.
 
 ---
