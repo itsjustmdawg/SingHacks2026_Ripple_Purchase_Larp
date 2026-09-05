@@ -7,6 +7,8 @@ import type {
   QuoteEvaluation,
 } from "@/types";
 
+import type { ProcurementAgentModel } from "./procurement-model";
+
 export interface DealAnalystAgentResult {
   analysis: DealAnalysis;
   trace: AgentTraceEvent;
@@ -32,11 +34,12 @@ function scoreOffer(
   );
 }
 
-export function runDealAnalystAgent(
+export async function runDealAnalystAgent(
   request: AgentRequest,
   catalog: CatalogSearchResult,
   timestamp: string,
-): DealAnalystAgentResult {
+  model: ProcurementAgentModel | null = null,
+): Promise<DealAnalystAgentResult> {
   const maxCatalogPrice = Math.max(
     ...catalog.offers.map((offer) => offer.priceXrp),
     1,
@@ -61,7 +64,29 @@ export function runDealAnalystAgent(
         evaluation.eligible && evaluation.score !== null,
     )
     .sort((left, right) => right.score - left.score);
-  const selectedEvaluation = ranked[0] ?? null;
+  let selectedEvaluation = ranked[0] ?? null;
+  let engine: AgentTraceEvent["engine"] = "deterministic";
+  let modelName: string | undefined;
+  let modelSummary = "";
+
+  if (model && ranked.length > 0) {
+    try {
+      const decision = await model.analyze(
+        request.userMessage,
+        catalog.offers,
+        evaluations,
+      );
+      selectedEvaluation =
+        ranked.find(
+          (evaluation) => evaluation.offerId === decision.selectedOfferId,
+        ) ?? selectedEvaluation;
+      engine = "gemini";
+      modelName = model.model;
+      modelSummary = ` ${decision.summary}`;
+    } catch {
+      modelSummary = " Gemini was unavailable, so validated scoring selected the offer.";
+    }
+  }
   const selectedOffer = selectedEvaluation
     ? (catalog.offers.find((offer) => offer.id === selectedEvaluation.offerId) ?? null)
     : null;
@@ -78,7 +103,7 @@ export function runDealAnalystAgent(
       ? ` Excluded ${excludedProviders.join(", ")} for exceeding the user budget.`
       : "";
   const message = selectedOffer && selectedEvaluation
-    ? `Selected ${selectedOffer.provider} at ${selectedOffer.priceXrp} XRP with a ${selectedEvaluation.score}/100 value score.${budgetSummary}`
+    ? `Selected ${selectedOffer.provider} at ${selectedOffer.priceXrp} XRP with a ${selectedEvaluation.score}/100 validated score.${budgetSummary}${modelSummary}`
     : `No offer satisfied the objective${catalog.budgetXrp === null ? "" : ` within ${catalog.budgetXrp} XRP`}.`;
 
   return {
@@ -88,6 +113,8 @@ export function runDealAnalystAgent(
       agent: "deal_analyst",
       label: "Deal Analyst",
       status: selectedOffer ? "completed" : "denied",
+      engine,
+      model: modelName,
       message,
       timestamp,
     },

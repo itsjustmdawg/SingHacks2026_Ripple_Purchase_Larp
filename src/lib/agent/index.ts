@@ -4,10 +4,9 @@ export type { AgentDecisionModel, AgentModelDecision } from "./model";
 export {
   AgentModelOutputError,
   createConfiguredAgentModel,
-  OpenAIAgentModel,
+  GeminiAgentModel,
   validateAgentModelDecision,
-} from "./openai-model";
-export type { OpenAIAgentModelOptions } from "./openai-model";
+} from "./gemini-model";
 export {
   AgentRequestValidationError,
   validateAgentRequest,

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { POST } from "./route";
 
@@ -14,6 +14,10 @@ function postJson(body: unknown): Request {
 
 afterEach(() => {
   vi.unstubAllEnvs();
+});
+
+beforeEach(() => {
+  vi.stubEnv("GEMINI_API_KEY", "");
 });
 
 describe("POST /api/agents/orchestrate", () => {

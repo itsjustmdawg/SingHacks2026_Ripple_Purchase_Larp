@@ -1,4 +1,9 @@
-export type CatalogCategory = "storage" | "api" | "compute" | "analytics";
+export type CatalogCategory =
+  | "storage"
+  | "api"
+  | "compute"
+  | "analytics"
+  | "furniture";
 
 export interface CatalogOffer {
   id: string;
@@ -15,7 +20,7 @@ export interface CatalogOffer {
 }
 
 export interface CatalogSearchResult {
-  category: CatalogCategory | "any";
+  category: CatalogCategory | "mixed" | "unknown";
   budgetXrp: number | null;
   offers: CatalogOffer[];
 }

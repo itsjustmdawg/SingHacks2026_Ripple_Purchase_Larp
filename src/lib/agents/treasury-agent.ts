@@ -42,6 +42,7 @@ export async function runTreasuryAgent(
       agent: "treasury",
       label: "Treasury",
       status: "completed",
+      engine: "deterministic",
       message: `Constructed proposal ${proposal.id} to pay ${proposal.amount} XRP to ${selectedOffer.provider}; no funds have moved.`,
       timestamp,
     },

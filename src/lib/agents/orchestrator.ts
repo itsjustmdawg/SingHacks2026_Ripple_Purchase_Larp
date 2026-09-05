@@ -11,12 +11,17 @@ import type {
 import { validateAgentRequest } from "@/lib/agent";
 
 import { runDealAnalystAgent } from "./deal-analyst-agent";
+import {
+  createConfiguredProcurementModel,
+  type ProcurementAgentModel,
+} from "./procurement-model";
 import { runScoutAgent } from "./scout-agent";
 import { runTreasuryAgent } from "./treasury-agent";
 
 export interface MultiAgentPipelineOptions {
   now?: Date;
   policyContext?: PolicyEvaluationContext;
+  model?: ProcurementAgentModel | null;
 }
 
 function stageTimestamp(now: Date, stage: number): string {
@@ -35,14 +40,19 @@ export async function runMultiAgentPipeline(
   const request = validateAgentRequest(input);
   const now = options.now ?? new Date();
   const trace: AgentTraceEvent[] = [];
+  const model =
+    options.model === undefined
+      ? createConfiguredProcurementModel()
+      : options.model;
 
-  const scout = runScoutAgent(request, stageTimestamp(now, 0));
+  const scout = await runScoutAgent(request, stageTimestamp(now, 0), model);
   trace.push(scout.trace);
 
-  const analyst = runDealAnalystAgent(
+  const analyst = await runDealAnalystAgent(
     request,
     scout.catalog,
     stageTimestamp(now, 1),
+    model,
   );
   trace.push(analyst.trace);
 
@@ -85,6 +95,7 @@ export async function runMultiAgentPipeline(
     agent: "policy_engine",
     label: "Policy Engine",
     status: policyDecision.approved ? "approved" : "denied",
+    engine: "policy",
     message: policyDecision.reason,
     timestamp: stageTimestamp(now, 3),
   });

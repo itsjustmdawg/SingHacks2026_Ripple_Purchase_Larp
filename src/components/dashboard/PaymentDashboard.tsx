@@ -42,6 +42,10 @@ const DEFAULT_OBJECTIVE = "Find the best encrypted cloud storage under 5 XRP";
 
 const examples = [
   {
+    label: "Chair",
+    value: "Find the best chair under 5 XRP",
+  },
+  {
     label: "Analytics",
     value: "Choose the best market analytics subscription within 5 XRP",
   },
@@ -186,6 +190,7 @@ function createXrplTrace(
     agent: "xrpl_agent",
     label: "XRPL Agent",
     status,
+    engine: "xrpl",
     message,
     timestamp: new Date().toISOString(),
   };
@@ -322,17 +327,24 @@ function CollaborationFeed({ trace }: { trace: AgentTraceEvent[] }) {
             <div className="min-w-0 flex-1 rounded-xl border border-white/8 bg-[#07101f]/75 px-3.5 py-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs font-semibold text-slate-200">{event.label}</p>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-[9px] font-bold tracking-wide uppercase ${
-                    isFailure
-                      ? "bg-rose-300/10 text-rose-300"
-                      : isWorking
-                        ? "bg-amber-300/10 text-amber-300"
-                        : "bg-emerald-300/10 text-emerald-300"
-                  }`}
-                >
-                  {event.status}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="rounded-full bg-cyan-300/10 px-2 py-0.5 text-[9px] font-bold tracking-wide text-cyan-200 uppercase">
+                    {event.engine === "gemini" && event.model
+                      ? `Gemini · ${event.model}`
+                      : event.engine}
+                  </span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[9px] font-bold tracking-wide uppercase ${
+                      isFailure
+                        ? "bg-rose-300/10 text-rose-300"
+                        : isWorking
+                          ? "bg-amber-300/10 text-amber-300"
+                          : "bg-emerald-300/10 text-emerald-300"
+                    }`}
+                  >
+                    {event.status}
+                  </span>
+                </div>
               </div>
               <p className="mt-1.5 break-words text-xs leading-5 text-slate-400">
                 {event.message}
@@ -429,6 +441,7 @@ export function PaymentDashboard() {
         agent: "market_scout",
         label: "Market Scout",
         status: "working",
+        engine: "pending",
         message: "Searching the mock marketplace for matching offers…",
         timestamp: new Date().toISOString(),
       },

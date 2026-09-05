@@ -110,6 +110,45 @@ const CATALOG_OFFERS: readonly CatalogOffer[] = [
     reliabilityScore: 0.96,
     features: ["dashboards", "alerts", "exports"],
   },
+  {
+    id: "furniture-ergoflow",
+    provider: "ErgoFlow",
+    service: "Ergonomic Mesh Chair",
+    category: "furniture",
+    description: "Adjustable office chair with lumbar support and mesh back.",
+    priceXrp: 4.6,
+    recipient: "rJn2prkitEBcrzLZhzVQkeTzDgaF9VxY7c",
+    uptimePercent: 99.8,
+    responseTimeMs: 140,
+    reliabilityScore: 0.97,
+    features: ["lumbar support", "adjustable arms", "mesh back"],
+  },
+  {
+    id: "furniture-seatcraft",
+    provider: "SeatCraft",
+    service: "Essential Office Chair",
+    category: "furniture",
+    description: "Affordable task chair for compact workspaces.",
+    priceXrp: 3.2,
+    recipient: "rDsbeomae4FXwgQTJp9Rs64Qg9vDiTCdBv",
+    uptimePercent: 99.5,
+    responseTimeMs: 190,
+    reliabilityScore: 0.9,
+    features: ["height adjustment", "compact", "padded seat"],
+  },
+  {
+    id: "furniture-aeronova",
+    provider: "AeroNova",
+    service: "Executive Smart Chair",
+    category: "furniture",
+    description: "Premium posture-tracking chair with extended warranty.",
+    priceXrp: 6.8,
+    recipient: "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe",
+    uptimePercent: 99.95,
+    responseTimeMs: 105,
+    reliabilityScore: 0.98,
+    features: ["posture tracking", "premium lumbar support", "warranty"],
+  },
 ];
 
 const CATEGORY_KEYWORDS: Readonly<Record<CatalogCategory, readonly string[]>> = {
@@ -117,6 +156,7 @@ const CATEGORY_KEYWORDS: Readonly<Record<CatalogCategory, readonly string[]>> = 
   api: ["api", "credits", "endpoint", "developer pack"],
   compute: ["compute", "gpu", "cpu", "inference", "server"],
   analytics: ["analytics", "market data", "dashboard", "insight"],
+  furniture: ["chair", "chairs", "seat", "seating", "furniture", "desk chair"],
 };
 
 const BUDGET_PATTERNS = [
@@ -124,7 +164,7 @@ const BUDGET_PATTERNS = [
   /\b(?:less than|no more than)\s+(?:XRP\s*)?(\d+(?:\.\d{1,6})?)\s*(?:XRP)?\b/i,
 ] as const;
 
-function inferCategory(objective: string): CatalogCategory | "any" {
+function inferCategory(objective: string): CatalogCategory | "unknown" {
   const normalized = objective.toLowerCase();
   let best: { category: CatalogCategory; matches: number } | null = null;
 
@@ -138,7 +178,7 @@ function inferCategory(objective: string): CatalogCategory | "any" {
     }
   }
 
-  return best?.category ?? "any";
+  return best?.category ?? "unknown";
 }
 
 function extractBudget(objective: string): number | null {
@@ -155,7 +195,7 @@ function extractBudget(objective: string): number | null {
 export function queryCatalog(objective: string): CatalogSearchResult {
   const category = inferCategory(objective);
   const offers = CATALOG_OFFERS.filter(
-    (offer) => category === "any" || offer.category === category,
+    (offer) => category !== "unknown" && offer.category === category,
   ).map((offer) => ({ ...offer, features: [...offer.features] }));
 
   return {

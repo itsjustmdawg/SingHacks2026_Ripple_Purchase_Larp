@@ -12,6 +12,7 @@ export type {
   CatalogSearchResult,
 } from "./catalog";
 export type {
+  AgentExecutionEngine,
   AgentTraceEvent,
   AgentTraceStatus,
   DealAnalysis,

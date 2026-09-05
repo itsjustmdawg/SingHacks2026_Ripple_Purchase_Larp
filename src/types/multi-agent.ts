@@ -17,11 +17,20 @@ export type AgentTraceStatus =
   | "confirmed"
   | "failed";
 
+export type AgentExecutionEngine =
+  | "pending"
+  | "gemini"
+  | "deterministic"
+  | "policy"
+  | "xrpl";
+
 export interface AgentTraceEvent {
   id: string;
   agent: PipelineAgent;
   label: string;
   status: AgentTraceStatus;
+  engine: AgentExecutionEngine;
+  model?: string;
   message: string;
   timestamp: string;
 }

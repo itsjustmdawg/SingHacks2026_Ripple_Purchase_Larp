@@ -19,7 +19,7 @@ describe("runMultiAgentPipeline", () => {
   it("scouts, compares, proposes, and authorizes in separate stages", async () => {
     const result = await runMultiAgentPipeline(
       request("Find the best encrypted cloud storage under 5 XRP"),
-      { now: NOW, policyContext: createDevelopmentPolicyContext() },
+      { now: NOW, policyContext: createDevelopmentPolicyContext(), model: null },
     );
 
     expect(result.catalog.offers).toHaveLength(3);
@@ -43,7 +43,7 @@ describe("runMultiAgentPipeline", () => {
   it("stops before treasury when no quote satisfies the user budget", async () => {
     const result = await runMultiAgentPipeline(
       request("Find cloud storage under 1 XRP"),
-      { now: NOW, policyContext: createDevelopmentPolicyContext() },
+      { now: NOW, policyContext: createDevelopmentPolicyContext(), model: null },
     );
 
     expect(result.analysis.selectedOffer).toBeNull();
@@ -62,7 +62,7 @@ describe("runMultiAgentPipeline", () => {
 
     const result = await runMultiAgentPipeline(
       request("Find the best encrypted cloud storage under 5 XRP"),
-      { now: NOW, policyContext },
+      { now: NOW, policyContext, model: null },
     );
 
     expect(result.analysis.selectedOffer?.provider).toBe("CloudDrop");
@@ -71,5 +71,40 @@ describe("runMultiAgentPipeline", () => {
       agent: "policy_engine",
       status: "denied",
     });
+  });
+
+  it("uses model-backed Scout and Analyst decisions for chair procurement", async () => {
+    const model = {
+      model: "gemini-test",
+      async scout() {
+        return {
+          matchingOfferIds: [
+            "furniture-ergoflow",
+            "furniture-seatcraft",
+            "furniture-aeronova",
+          ],
+          budgetXrp: 5,
+          summary: "Matched three chair products.",
+        };
+      },
+      async analyze() {
+        return {
+          selectedOfferId: "furniture-ergoflow",
+          summary: "ErgoFlow best matches the requested chair.",
+          confidence: 0.96,
+        };
+      },
+    };
+    const result = await runMultiAgentPipeline(
+      request("Find the best chair under 5 XRP"),
+      { now: NOW, policyContext: createDevelopmentPolicyContext(), model },
+    );
+
+    expect(result.catalog.category).toBe("furniture");
+    expect(result.analysis.selectedOffer?.provider).toBe("ErgoFlow");
+    expect(result.trace.slice(0, 2)).toMatchObject([
+      { agent: "market_scout", engine: "gemini", model: "gemini-test" },
+      { agent: "deal_analyst", engine: "gemini", model: "gemini-test" },
+    ]);
   });
 });

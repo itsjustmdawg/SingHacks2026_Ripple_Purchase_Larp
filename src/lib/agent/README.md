@@ -20,11 +20,10 @@ Incomplete or ambiguous input returns an explicit `none` proposal with low
 confidence, so policy cannot accidentally authorize it. Runtime request
 validation rejects malformed or unexpected API fields.
 
-When `LLM_API_KEY` is configured, the API uses the OpenAI Responses API with a
-strict JSON schema. `LLM_MODEL` defaults to `gpt-5.6-luna`, and `LLM_BASE_URL`
-can override the API base URL. Invalid or unavailable model output falls back to
-the deterministic extractor; callers can disable that fallback when they need
-the model error to surface.
+When `GEMINI_API_KEY` is configured, the API uses Google's native Gemini SDK
+with a strict JSON schema. `GEMINI_MODEL` defaults to `gemini-3.6-flash`.
+Invalid or unavailable model output falls back to the deterministic extractor;
+callers can disable that fallback when they need the model error to surface.
 
 ## Example
 

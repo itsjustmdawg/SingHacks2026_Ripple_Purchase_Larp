@@ -14,8 +14,8 @@ boundary: model reasoning alone must never determine whether funds can move.
 
 The system separates six concerns:
 
-1. A Market Scout queries a mock service catalog.
-2. A Deal Analyst filters the user budget and ranks eligible quotes.
+1. A Gemini Market Scout semantically queries a mock product/service catalog.
+2. A Gemini Deal Analyst compares eligible quotes while code enforces budget validity.
 3. A Treasury agent converts the selected quote into a typed payment proposal.
 4. An independent policy engine approves or rejects that proposal.
 5. The user reviews the exact recipient and amount before signing.
@@ -102,22 +102,32 @@ exception.
 
 | Variable | Purpose |
 | --- | --- |
-| `LLM_API_KEY` | Optional OpenAI API key for model-backed intent extraction |
-| `LLM_MODEL` | OpenAI model ID; defaults to `gpt-5.6-luna` |
-| `LLM_BASE_URL` | Optional OpenAI-compatible API base URL override |
-| `XRPL_NETWORK` | XRPL network; use `testnet` during development |
-| `XRPL_RPC_URL` | Optional XRPL WebSocket endpoint override |
-| `XRPL_WALLET_SEED` | Optional local Testnet wallet seed |
+| `GEMINI_API_KEY` | Gemini API key used server-side by Market Scout and Deal Analyst |
+| `GEMINI_MODEL` | Gemini model ID; defaults to `gemini-3.6-flash` |
+| `XRPL_NETWORK` | Ledger network; defaults to `testnet` |
+| `XRPL_RPC_URL` | Optional WebSocket override; blank uses the official network endpoint |
+| `XRPL_WALLET_SEED` | Optional persistent Testnet wallet; blank auto-funds a temporary wallet |
+| `POLICY_TRANSACTION_LIMIT_XRP` | Maximum XRP allowed for one proposal |
+| `POLICY_REMAINING_BUDGET_XRP` | Current server-owned spending budget |
+| `POLICY_APPROVAL_THRESHOLD_XRP` | Amount requiring additional approval evidence |
 
 Never commit wallet seeds, private keys, or API credentials. Do not use
 production or mainnet credentials during early development.
+
+Only `GEMINI_API_KEY` is required for the model-backed demo. The same key is
+shared by the Scout and Analyst, which make separate structured Gemini calls.
+Treasury and Policy intentionally do not use a model, and signing stays inside
+the XRPL service. For local Testnet use, `XRPL_RPC_URL` and `XRPL_WALLET_SEED`
+may remain blank. The app then uses the official Testnet endpoint and requests a
+temporary faucet-funded wallet. Configure a Testnet seed as a deployment secret
+only when the demo needs the same wallet address across restarts.
 
 ## API boundaries
 
 | Endpoint | Input | Current behavior |
 | --- | --- | --- |
-| `POST /api/agent` | `AgentRequest` | Returns a structured proposal using the configured model or deterministic fallback |
-| `POST /api/agents/orchestrate` | `AgentRequest` | Runs scout, analyst, treasury, and policy stages and returns their decision receipts |
+| `POST /api/agent` | `AgentRequest` | Returns a structured proposal using native Gemini structured output or deterministic fallback |
+| `POST /api/agents/orchestrate` | `AgentRequest` | Runs Gemini Scout and Analyst, deterministic Treasury, and independent Policy stages |
 | `POST /api/policy` | `PaymentProposal` | Returns a `PolicyDecision` using temporary development rules |
 | `POST /api/transaction` | `PaymentProposal` | Re-authorizes the proposal server-side, then submits approved XRP payments |
 

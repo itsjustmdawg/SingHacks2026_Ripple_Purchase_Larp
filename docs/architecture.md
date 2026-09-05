@@ -3,8 +3,8 @@
 The system follows one directional multi-agent workflow:
 
 1. The user enters a service objective and optional XRP budget.
-2. Market Scout queries `src/lib/catalog/` and returns matching offers.
-3. Deal Analyst filters over-budget offers and scores eligible quotes.
+2. Gemini Market Scout semantically matches the objective to `src/lib/catalog/` offers.
+3. Gemini Deal Analyst selects among quotes that deterministic budget checks mark eligible.
 4. Treasury feeds the winning quote into `createPaymentProposal()`.
 5. The policy engine evaluates the proposal against independent server rules.
 6. The user reviews the exact recipient and amount.
@@ -53,9 +53,10 @@ logic.
 
 ## Current implementation
 
-The deterministic specialist agents produce reproducible catalog decisions,
-the optional model-backed planner handles direct intent extraction, the policy
-layer authorizes proposals, and the XRPL service signs, submits, and verifies
+Gemini powers the Scout and Deal Analyst through separate structured calls. All
+returned catalog IDs are validated, and deterministic matching/scoring remains
+as a graceful fallback. Treasury constructs the proposal, the policy layer
+authorizes it independently, and the XRPL service signs, submits, and verifies
 XRP payments. The default configuration targets XRPL Testnet. The mock catalog
 and environment-backed policy must be replaced by authenticated, transactional
 services before production use.
