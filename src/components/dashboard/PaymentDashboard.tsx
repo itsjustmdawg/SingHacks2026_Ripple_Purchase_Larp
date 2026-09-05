@@ -478,7 +478,21 @@ export function PaymentDashboard() {
       setPolicy(nextPipeline.policyDecision);
       if (!nextPipeline.proposal) {
         setStatus("failed");
-        setError("No catalog offer matched the objective and user budget.");
+        if (nextPipeline.catalog.offers.length === 0) {
+          setError(
+            "That product is not available in the demo catalog. Try Chair, Cloud storage, API credits, Compute, or Analytics.",
+          );
+        } else if (
+          nextPipeline.analysis.evaluations.every(
+            (evaluation) => !evaluation.eligible,
+          )
+        ) {
+          setError(
+            `Matching offers were found, but none fit${nextPipeline.catalog.budgetXrp === null ? " the requested constraints" : ` the ${formatXrp(nextPipeline.catalog.budgetXrp)} XRP budget`}.`,
+          );
+        } else {
+          setError("The Deal Analyst could not select a valid matching offer.");
+        }
       } else if (!nextPipeline.policyDecision?.approved) {
         setStatus("failed");
         setError("Policy denied this proposal. Review the failed rules below.");
