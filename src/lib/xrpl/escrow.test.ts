@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { Wallet } from "xrpl";
 import {
   RIPPLE_EPOCH_OFFSET,
+  ESCROW_FINISH_AFTER_BUFFER_SECONDS,
   unixToRippleTime,
   rippleTimeToUnix,
   buildEscrowCreateTransaction,
@@ -60,7 +61,8 @@ describe("XRPL Escrow Transaction Construction", () => {
     expect(cancelAfterRipple).toBe(expectedUnixSec - RIPPLE_EPOCH_OFFSET);
     expect(tx.CancelAfter).toBe(cancelAfterRipple);
     expect(tx.FinishAfter).toBe(
-      unixToRippleTime(Math.floor(fixedNowMs / 1000)) + 5,
+      unixToRippleTime(Math.floor(fixedNowMs / 1000)) +
+        ESCROW_FINISH_AFTER_BUFFER_SECONDS,
     );
     expect(cancelAfterIso).toBe(new Date(expectedUnixSec * 1000).toISOString());
 
