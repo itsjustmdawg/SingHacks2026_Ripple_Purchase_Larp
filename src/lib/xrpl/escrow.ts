@@ -444,16 +444,29 @@ export async function submitEscrowFinish(
           command: "ledger",
           ledger_index: "validated",
         });
-        const currentClose = (
+        let currentClose = (
           ledgerRes.result as { ledger?: { close_time?: number } }
         ).ledger?.close_time;
         if (
           typeof currentClose === "number" &&
           currentClose < escrowObj.FinishAfter
         ) {
-          const waitSec = Math.min(10, escrowObj.FinishAfter - currentClose + 1);
-          if (waitSec > 0) {
-            await new Promise((resolve) => setTimeout(resolve, waitSec * 1000));
+          const startTime = Date.now();
+          while (
+            currentClose < escrowObj.FinishAfter &&
+            Date.now() - startTime < 15000
+          ) {
+            await new Promise((resolve) => setTimeout(resolve, 1500));
+            const pollRes = await client.request({
+              command: "ledger",
+              ledger_index: "validated",
+            });
+            const polledClose = (
+              pollRes.result as { ledger?: { close_time?: number } }
+            ).ledger?.close_time;
+            if (typeof polledClose === "number") {
+              currentClose = polledClose;
+            }
           }
         }
       }
@@ -587,7 +600,7 @@ export async function submitEscrowCancel(
           command: "ledger",
           ledger_index: "validated",
         });
-        const currentClose = (
+        let currentClose = (
           ledgerRes.result as { ledger?: { close_time?: number } }
         ).ledger?.close_time;
         if (
@@ -596,9 +609,23 @@ export async function submitEscrowCancel(
         ) {
           const waitSec = escrowObj.CancelAfter - currentClose;
           if (waitSec > 0 && waitSec <= 5) {
-            await new Promise((resolve) =>
-              setTimeout(resolve, (waitSec + 1) * 1000),
-            );
+            const startTime = Date.now();
+            while (
+              currentClose < escrowObj.CancelAfter &&
+              Date.now() - startTime < 10000
+            ) {
+              await new Promise((resolve) => setTimeout(resolve, 1500));
+              const pollRes = await client.request({
+                command: "ledger",
+                ledger_index: "validated",
+              });
+              const polledClose = (
+                pollRes.result as { ledger?: { close_time?: number } }
+              ).ledger?.close_time;
+              if (typeof polledClose === "number") {
+                currentClose = polledClose;
+              }
+            }
           } else if (waitSec > 5) {
             return {
               transactionId,

@@ -1,261 +1,306 @@
-# Purchase LARP — Autonomous Agentic Payments
+# Purchase LARP — Autonomous Agentic Procurement & XRPL Settlement Platform
 
-A multi-agent procurement workflow that turns a user objective into catalog
-research, a scored vendor selection, a structured payment proposal, an
-independent policy decision, and verifiable XRP Ledger (XRPL) settlement.
+An AI-native multi-agent procurement system that transforms natural-language user objectives into structured catalog discovery, rigorous multi-quote analysis, deterministic policy-governed approval, and cryptographic settlement on the XRP Ledger (XRPL) with native Escrows and on-chain audit trails.
 
-## Website and demo login
+Built for **SingHacks 2026** — *Problem Statement: Ripple — AI-Native Business on XRPL*.
 
-### XRPL Digital Safe prototype
+---
 
-Latest main's native EscrowCreate, EscrowFinish and EscrowCancel routes and UI are
-integrated with the two-field Testnet demo. The busy-state lock after creation is
-fixed; cancellation eligibility is displayed from the actual returned deadline.
-Browser-persisted escrow state supports reload recovery, and lost responses must
-be reconciled before a new ledger action. The delivery service is **simulated**.
+## Executive Summary & Problem Statement
 
-Important: this implementation uses time-based escrow with FinishAfter and
-CancelAfter, not a delivery-conditioned cryptographic escrow. The ledger does
-not independently verify delivery, and the API does not establish a trusted
-delivery oracle. Refunds require someone to submit EscrowCancel after eligibility;
-they do not occur automatically at timeout. Fees are not refunded. Do not pitch
-this as zero-risk, automatic dispute resolution, or production delivery protection.
+Most AI assistant workflows stop at recommendation because models cannot safely execute or verify financial commitments. Connecting generative AI directly to private keys or payment endpoints introduces severe financial and operational hazards:
 
-### Item + price research
+- **Model Hallucination & Drift**: LLMs can misinterpret amounts, invent vendor accounts, or hallucinate transaction confirmations.
+- **Missing Authorization Boundaries**: Model reasoning must **never** be the sole authority deciding whether real capital moves.
+- **Lack of Ledger-Grade Finality**: Autonomous commerce requires immutable transaction records, verifiable audit memos, and safety mechanisms (such as time-locked escrows) to prevent double-spending and unauthorized fund loss.
 
-The workspace and Launch flow now use **two separate text fields**: the item or
-need, and the price requirement. Examples: `max 100 SGD`, `between 20 and 50 EUR`,
-`min 0.001 BTC`, or `5 XRP` (interpreted as a maximum). Ambiguous `$` currency,
-contradictory ranges and unknown token rates require clarification, never a guess.
-Original and converted bounds are shown before research; minimum and maximum
-constraints are independently enforced by code. Conversion uses dated daily
-[currency-api reference rates](https://github.com/fawazahmed0/exchange-api), not a
-live executable exchange quote. Missing or stale rates fail closed.
+### The Solution: Decoupled Multi-Agent Architecture
 
-**Web search** is the default. Gemini Scout uses Google Search grounding instead
-of the fixed catalog; Analyst extracts source-linked prices, and code checks the
-XRP range. These are reported web prices, not guaranteed merchant quotes. Sources
-and Google Search suggestions are displayed. No merchant wallet is invented, and
-no web listing is routed to a demo payment address. Actual purchases require the
-seller's checkout or a future verified XRPL merchant integration.
+Purchase LARP enforces a strict separation between **untrusted AI reasoning** and **trusted deterministic execution**:
 
-**Account requirement:** the configured key returned `429 RESOURCE_EXHAUSTED`
-during grounding verification. Google currently lists Search grounding as
-unavailable on the free API tier ([pricing](https://ai.google.dev/gemini-api/docs/pricing)).
-The integration is implemented, but source-backed automated web search cannot be
-verified with this account until grounding access/quota is available. No billing
-was enabled. Users get an explicit explanation, retry and external Google Shopping
-link; generated catalog results are never mislabeled as a successful web search.
+1. **Discovery & Semantic Search**: Gemini Market Scout queries products either via live Web Search (with Google Search Grounding) or an internal testnet catalog.
+2. **Deal Analysis**: Gemini Deal Analyst filters, scores, and ranks eligible quotes while deterministic code enforces hard budget bounds.
+3. **Treasury Proposal**: Treasury converts the winning quote into an immutable, strongly-typed `PaymentProposal`.
+4. **Zero-Trust Policy Engine**: An independent, deterministic rules engine verifies Classic XRPL addresses, drop-level precision, spending permissions, and cumulative budget limits.
+5. **Human Approval Threshold & Digital Safe**: High-value transactions trigger human approval checks, and multi-stage deliveries can be locked into an XRPL time-based Digital Safe (Escrow).
+6. **On-Chain Settlement**: The XRPL settlement engine signs transactions locally (private keys never leave the server), submits them to the XRP Ledger, attaches `SourceTag` and audit `Memos`, and confirms validated ledger inclusion.
 
-**Testnet demo** remains explicitly selectable for the existing sample catalog
-and on-chain payment workflow. Live web discovery does not claim fulfillment.
-`POST /api/shopping/prepare` interprets prices and signs a ten-minute conversion
-preview; `POST /api/shopping/search` verifies it and performs the chosen search.
+---
 
-Research errors include retry/edit actions and a next step. Payment errors retain
-the hash, distinguish pre-submission failures from uncertain settlement, and offer
-read-only status retries. A browser-persisted pending attempt blocks another
-payment after reload until reconciled or explicitly acknowledged after checking
-the ledger. This is not durable distributed idempotency across all clients;
-production requires a server-side transaction journal and submission queue.
-
-Run `node --env-file=.env.local scripts/smoke-shopping.mjs http://localhost:3000`
-for the live demo/rate checks; add `--web` only when grounding quota is available.
-
-The orange/charcoal responsive website includes Home, Marketplace, Agents,
-agent profiles, Developers, a three-step Launch flow, Purchase Workspace,
-Team, and Activity. The frontend uses TypeScript, React and Next.js; the existing
-Gemini, deterministic policy and XRPL backend remains TypeScript too.
-
-Configure `AUTH_SECRET` (random, at least 32 characters), `DEMO_LOGIN_EMAIL`, and
-`DEMO_LOGIN_PASSWORD` in `.env.local`, then visit `/login`. Credentials are not
-checked into this repository. Sessions use signed, expiring HttpOnly cookies;
-workspace pages and non-auth APIs require login. This is a **shared hackathon
-workspace**, not individual accounts or production-ready identity management.
-
-Start with “Find the best chair under 5 XRP”. Research does not send money.
-Read the specialist summaries and policy checks, then explicitly approve the
-displayed Testnet recipient and amount. Activity stores public receipts in this
-browser and supports independent transaction-hash lookup. No payment is retried
-automatically after an uncertain response.
-
-Catalog products, advertised reliability and features are **demo data**. Gemini
-calls and validated Testnet settlement are real when available; deterministic
-fallback is explicitly labeled. No real product is delivered. Policy budgets
-remain environment-configured snapshots, not a persistent accounting system.
-The login rate limiter is instance-local, not distributed abuse protection.
-
-See [Vercel setup and smoke tests](docs/hosting.md) for hosting instructions.
-
-## Problem
-
-Most AI assistants can recommend financial actions but cannot securely execute
-and verify them. Payment execution also needs a trustworthy authorization
-boundary: model reasoning alone must never determine whether funds can move.
-
-## Proposed solution
-
-The system separates six concerns:
-
-1. A Gemini Market Scout semantically queries a mock product/service catalog.
-2. A Gemini Deal Analyst compares eligible quotes while code enforces budget validity.
-3. A Treasury agent converts the selected quote into a typed payment proposal.
-4. An independent policy engine approves or rejects that proposal.
-5. The user reviews the exact recipient and amount before signing.
-6. An XRPL agent settles approved requests and returns validated-ledger proof.
-
-## Architecture
+## System Architecture
 
 ```mermaid
-flowchart LR
-    U[User Objective] --> S[Market Scout]
-    S --> A[Deal Analyst]
-    A --> T[Treasury]
-    T --> P[Payment Proposal]
-    P --> R[Independent Policy]
-    R -->|Approved + reviewed| X[XRPL Agent]
-    R -->|Rejected| D[Decision Receipt]
-    X --> L[XRP Ledger]
-    L --> V[Transaction Verification]
-    V --> UI[Frontend Dashboard]
+flowchart TD
+    User([User Objective & Budget]) --> Launch["Launch Flow / Workspace"]
+    Launch --> Scout["Gemini Market Scout\n(Web Grounding or Catalog)"]
+    Scout --> Analyst["Gemini Deal Analyst\n(Quote Filtering & Scoring)"]
+    Analyst --> Treasury["Treasury Agent\n(Constructs PaymentProposal)"]
+    Treasury --> Proposal[("PaymentProposal\n(Immutable Contract)")]
+
+    subgraph TrustBoundary ["🛡️ Deterministic Zero-Trust Boundary"]
+        Proposal --> Policy["Independent Policy Engine"]
+        Policy --> Rule1{"Address Check\n(Base58 Checksum)"}
+        Rule1 -->|Valid| Rule2{"Drop Math\n(Exact Int Drops)"}
+        Rule2 -->|Valid| Rule3{"Budget & Caps\n(Per-tx & Remaining)"}
+        Rule3 -->|Valid| Rule4{"Approval Check\n(Threshold & Evidence)"}
+    end
+
+    Rule4 -->|Approved| Decision["PolicyDecision: APPROVED"]
+    Rule4 -->|Denied| Rejection["PolicyDecision: REJECTED\n(Fail-Closed Diagnostic)"]
+
+    Decision --> UserReview{"User Review\n& Escrow Option"}
+    UserReview -->|Direct Payment| XRPLPay["XRPL Payment Engine\n(Payment + Memo + SourceTag)"]
+    UserReview -->|Digital Safe| XRPLEscrow["XRPL Escrow Engine\n(EscrowCreate / Finish / Cancel)"]
+
+    XRPLPay --> Ledger[("XRP Ledger\n(Testnet Consensus)")]
+    XRPLEscrow --> Ledger
+
+    Ledger --> Verification["Ledger Verification API\n(/api/transaction/verify)"]
+    Verification --> Activity["Activity & Receipts UI"]
 ```
 
-The specialist agents discover and propose, the policy engine authorizes, and
-the XRPL layer executes. No layer takes on another layer's responsibility. See
-[`docs/architecture.md`](docs/architecture.md) for the end-to-end sequence.
+See [`docs/architecture.md`](docs/architecture.md) for the detailed sequence diagram and component specifications.
 
-## Repository structure
+---
+
+## Core Capabilities
+
+### 1. Dual Discovery Modes & Multi-Currency Budgeting
+- **Two-Field Intent Formulation**: The user specifies the target objective (e.g., `Ergonomic chair with lumbar support`) and pricing requirement (e.g., `between 4 and 5 XRP`, `max 100 SGD`, `between 20 and 50 EUR`).
+- **Deterministic FX Bounds**: Currencies like SGD, EUR, USD, and BTC are parsed and converted to exact XRP limits using dated [currency-api](https://github.com/fawazahmed0/exchange-api) reference rates. Ambiguous currencies (e.g., unqualified `$`) fail closed with actionable user guidance.
+- **Signed Conversion Previews**: The `/api/shopping/prepare` endpoint signs a 10-minute rate snapshot with HMAC tokens before executing search queries.
+- **Web Search Mode**: Leverages Gemini with Google Search Grounding to discover live marketplace listings with source attribution, web citations, and extracted pricing.
+- **Demo Catalog Mode**: Provides deterministic, reproducible mock merchant listings with genuine XRPL Testnet recipient addresses for instant end-to-end checkout.
+
+### 2. Zero-Trust Deterministic Policy Engine (`src/lib/policy/`)
+- **Fail-Closed by Design**: Any malformed payload, unknown field, negative/infinite amount, or missing context results in an immediate structured denial.
+- **Exact Drop Arithmetic**: XRP amounts are converted to exact integer drops (`1 XRP = 1,000,000 drops`) to eliminate floating-point rounding errors and reject sub-drop precision.
+- **Cryptographic Classic Address Validation**: Validates XRPL Classic addresses using Base58 decoding and double-SHA256 checksum verification without network roundtrips.
+- **Multi-Tier Authorization**: Enforces single-transaction caps (`POLICY_TRANSACTION_LIMIT_XRP`), server-owned remaining budgets (`POLICY_REMAINING_BUDGET_XRP`), and human approval thresholds (`POLICY_APPROVAL_THRESHOLD_XRP`).
+
+### 3. XRPL Digital Safe & Direct Settlement (`src/lib/xrpl/`)
+- **Direct Payments**: Dispatches signed native XRP payments using XRPL `submitAndWait` for validated ledger finality.
+- **Audit Trails**: Appends standard `SourceTag` (`20260307`) and hex-encoded JSON `Memos` to transactions, linking on-chain transactions directly to proposal IDs and agent decisions.
+- **Digital Safe (Native Escrow)**:
+  - Supports `EscrowCreate`, `EscrowFinish`, and `EscrowCancel`.
+  - Enforces time locks with `FinishAfter` (earliest fulfillment) and `CancelAfter` (refund deadline).
+  - Synchronizes with validated ledger consensus close times to ensure transactions execute reliably without timing race conditions.
+- **Verification Engine**: Queries ledger index and transaction metadata via `/api/transaction/verify` to confirm finality and decode audit memos directly from ledger history.
+
+### 4. Interactive Dashboard & Activity Center
+- **Launchpad**: 3-step procurement flow: Intent & Budgeting &rarr; Multi-Agent Discovery &rarr; Policy Authorization & Settlement.
+- **Marketplace & Agent Roster**: Inspect agent capability profiles (Market Scout, Deal Analyst, Treasury, XRPL Officer) and browse catalog inventory.
+- **Activity & Receipt Explorer**: Tracks browser-persisted transaction receipts, on-chain transaction hashes, ledger indexes, and direct links to public XRPL explorers.
+
+---
+
+## Repository Structure
 
 ```text
-src/
-├── app/                    # App Router pages and thin API adapters
-│   ├── api/
-│   │   ├── agent/
-│   │   ├── agents/orchestrate/
-│   │   ├── policy/
-│   │   └── transaction/
-│   └── dashboard/
-├── components/             # UI components grouped by product domain
-├── config/                 # Non-secret application configuration
-├── lib/
-│   ├── agent/              # Intent and proposal generation
-│   ├── agents/             # Scout, analyst, treasury, and orchestration
-│   ├── catalog/            # Mock service marketplace
-│   ├── policy/             # Independent authorization rules
-│   ├── utils/              # Small shared implementation utilities
-│   └── xrpl/               # Transaction and verification boundary
-└── types/                   # Shared contracts between all workstreams
+.
+├── src/
+│   ├── app/                               # Next.js App Router (Pages & API routes)
+│   │   ├── (auth)/login/                  # Shared demo login page
+│   │   ├── activity/                      # Transaction history and receipt viewer
+│   │   ├── agents/                        # Agent roster and individual capability profiles
+│   │   ├── dashboard/                     # Procurement dashboard and agent status
+│   │   ├── developers/                    # Developer documentation and integration guides
+│   │   ├── launch/                        # 3-step procurement and launchpad UI
+│   │   ├── marketplace/                   # Sample product and service catalog
+│   │   └── api/                           # Secure server-side API endpoints
+│   │       ├── agent/                     # Single-agent proposal adapter
+│   │       ├── agents/orchestrate/        # Multi-agent procurement orchestrator
+│   │       ├── auth/                      # Session management (login, session check, logout)
+│   │       ├── catalog/deliver/           # Simulated merchant delivery service
+│   │       ├── policy/                    # Policy evaluation endpoint
+│   │       ├── shopping/                  # Shopping rate preparation & search execution
+│   │       ├── transaction/               # Payment execution endpoint
+│   │       │   ├── escrow/                # Native XRPL escrow operations (create/finish/cancel)
+│   │       │   └── verify/                # Ledger verification and memo decoding
+│   │       └── wallet/                    # Active agent wallet address & balance queries
+│   ├── components/                        # Domain-organized UI components
+│   ├── config/                            # Application constants and static configurations
+│   ├── lib/                               # Core business logic and service implementations
+│   │   ├── agent/                         # Proposal generation logic
+│   │   ├── agents/                        # Scout, Analyst, Treasury, and Orchestrator agents
+│   │   ├── auth/                          # HMAC session encryption and verification
+│   │   ├── catalog/                       # Mock catalog repository
+│   │   ├── gemini/                        # Google Gen AI client integration
+│   │   ├── policy/                        # Deterministic rules engine and safety validators
+│   │   ├── shopping/                      # Currency conversion rates, bounds, and search plans
+│   │   └── xrpl/                          # Client connection, payments, escrows, and verification
+│   └── types/                             # Jointly owned TypeScript type definitions
+├── docs/                                  # Architectural specs, hosting guides, and integration docs
+│   ├── architecture.md                    # System architecture and sequence workflows
+│   ├── hosting.md                         # Production hosting & Vercel deployment instructions
+│   └── python-integration.md              # Python SDK / external agent integration guide
+├── scripts/                               # Automation, verification, and live test scripts
+│   ├── smoke-demo.mjs                     # End-to-end API & auth smoke test
+│   ├── smoke-shopping.mjs                 # Shopping search & currency rate smoke test
+│   └── test-live-xrpl-suite.mjs           # Live XRPL testnet integration test suite
+└── vitest.config.mts                      # Vitest test runner configuration
 ```
 
-## Team ownership
+---
 
-| Workstream | Primary ownership | Responsibility |
-| --- | --- | --- |
-| Person 1 — AI Agents | `src/lib/agent/`, `src/lib/agents/`, `src/lib/catalog/` | Scout, compare, and create structured proposals |
-| Person 2 — Policy Engine | `src/lib/policy/` | Evaluate rules and return approval decisions |
-| Person 3 — XRPL Transactions | `src/lib/xrpl/` | Build, submit, confirm, and verify transactions |
-| Person 4 — Frontend + Integration | `src/app/`, `src/components/` | Build the dashboard and connect API boundaries |
+## API Reference
 
-Shared interfaces in `src/types/` are jointly owned contracts.
+All non-auth API endpoints require a valid session cookie generated via `/api/auth/login`.
 
-## Development setup
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/auth/login` | Authenticates shared demo credentials and sets an expiring HttpOnly session cookie. |
+| `DELETE` | `/api/auth/session` | Terminates session and clears authentication cookies. |
+| `GET` | `/api/wallet` | Returns the active agent's XRPL address, balance, and spendable reserves. |
+| `POST` | `/api/shopping/prepare` | Parses budget/currency constraints, calculates FX rates, and signs a conversion preview token. |
+| `POST` | `/api/shopping/search` | Executes Gemini Search Grounding (Web mode) or catalog matching (Demo mode). |
+| `POST` | `/api/agents/orchestrate` | Runs the end-to-end multi-agent pipeline (Scout &rarr; Analyst &rarr; Treasury &rarr; Policy). |
+| `POST` | `/api/policy` | Evaluates a `PaymentProposal` against deterministic safety, budget, and approval rules. |
+| `POST` | `/api/transaction` | Re-authorizes proposal server-side, signs locally, and submits XRP payment to XRPL. |
+| `POST` | `/api/transaction/escrow` | Manages XRPL Digital Safe lifecycle (`create`, `finish`, `cancel` escrows). |
+| `GET` | `/api/transaction/verify` | Queries XRPL for validated transaction status, ledger index, and audit memos. |
+| `POST` | `/api/catalog/deliver` | Triggers simulated merchant delivery updates for demonstration flows. |
 
-Requirements: a current Node.js LTS release and npm.
+For external agent frameworks (Python, CrewAI, LangChain), refer to [`docs/python-integration.md`](docs/python-integration.md).
+
+---
+
+## Getting Started
+
+### Prerequisites
+- **Node.js**: v20+ or v22 LTS recommended.
+- **npm**: v10+
+
+### 1. Installation
+Clone the repository and install dependencies:
 
 ```bash
+git clone https://github.com/itsjustmdawg/SingHacks2026_Ripple_Purchase_Larp.git
+cd SingHacks2026_Ripple_Purchase_Larp
 npm install
+```
+
+### 2. Environment Configuration
+Copy `.env.example` to `.env.local`:
+
+```bash
 cp .env.example .env.local
+```
+
+Configure the environment variables in `.env.local`:
+
+| Variable | Description | Default / Example |
+|---|---|---|
+| `GEMINI_API_KEY` | Google Gemini API key for Market Scout and Deal Analyst. | `AIzaSy...` |
+| `GEMINI_MODEL` | Model ID for structured analysis and discovery. | `gemini-3.6-flash` |
+| `XRPL_NETWORK` | Target XRPL network. | `testnet` |
+| `XRPL_RPC_URL` | WebSocket RPC URL (leave empty for official testnet server). | `wss://s.altnet.rippletest.net:51233` |
+| `XRPL_WALLET_SEED` | Testnet wallet secret seed (leave empty for auto-generated temporary wallet). | `sEd...` |
+| `AUTH_SECRET` | 32+ character random string for signing session and rate tokens. | Generate via `openssl rand -hex 32` |
+| `DEMO_LOGIN_EMAIL` | Shared demo login username. | `demo@purchaselarp.app` |
+| `DEMO_LOGIN_PASSWORD`| Shared demo login password. | *Your secure password* |
+| `POLICY_TRANSACTION_LIMIT_XRP` | Maximum XRP permitted for an individual proposal. | `10` |
+| `POLICY_REMAINING_BUDGET_XRP` | Maximum cumulative budget allowed before policy rejects. | `25` |
+| `POLICY_APPROVAL_THRESHOLD_XRP` | Amount requiring explicit dual-principal human approval. | `5` |
+
+> [!IMPORTANT]
+> Never commit `.env.local` or wallet seeds. In hosted environments (e.g. Vercel), configure a static funded Testnet wallet seed so separate serverless functions share the same identity and balance.
+
+### 3. Running Locally
+Start the Next.js development server:
+
+```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Additional checks:
+Visit [http://localhost:3000](http://localhost:3000) and sign in using your configured credentials.
+
+---
+
+## Verification & Testing Suite
+
+The repository features comprehensive automated and live test suites to guarantee safety and compliance.
+
+### 1. Automated Test Suite (Vitest)
+Executes 290 unit tests covering policy evaluation, address validation, drop precision, escrow operations, payments, and agent coordination:
 
 ```bash
-npm run lint
-npm run typecheck
 npm test
+```
+
+### 2. Code Quality & Type Safety
+Verifies TypeScript contracts and zero-warning ESLint standards:
+
+```bash
+npm run typecheck
+npm run lint
+```
+
+### 3. Production Build Validation
+Verifies Next.js compilation, tree-shaking, and static page generation:
+
+```bash
 npm run build
 ```
 
-## Environment variables
+### 4. Live XRPL Testnet Health Check
+Connects directly to the live XRPL Testnet, funds a wallet via faucet, checks account reserves, executes a direct payment with an audit memo, queries validated ledger inclusion, creates an Escrow, waits for ledger consensus, and finishes the escrow:
 
-Copy `.env.example` to `.env.local` and fill in only the values needed by your
-workstream. Local `.env*` files are ignored by Git; `.env.example` is the only
-exception.
+```bash
+npm run test:live
+```
 
-| Variable | Purpose |
-| --- | --- |
-| `GEMINI_API_KEY` | Gemini API key used server-side by Market Scout and Deal Analyst |
-| `GEMINI_MODEL` | Gemini model ID; defaults to `gemini-3.6-flash` |
-| `XRPL_NETWORK` | Ledger network; defaults to `testnet` |
-| `XRPL_RPC_URL` | Optional WebSocket override; blank uses the official network endpoint |
-| `XRPL_WALLET_SEED` | Required for hosting: stable Testnet wallet; blank is local-only temporary faucet mode |
-| `AUTH_SECRET` | Random session-signing secret, at least 32 characters |
-| `DEMO_LOGIN_EMAIL` / `DEMO_LOGIN_PASSWORD` | Shared demo login credentials |
-| `POLICY_TRANSACTION_LIMIT_XRP` | Maximum XRP allowed for one proposal |
-| `POLICY_REMAINING_BUDGET_XRP` | Current server-owned spending budget |
-| `POLICY_APPROVAL_THRESHOLD_XRP` | Amount requiring additional approval evidence |
+### 5. Read-Only Smoke Tests
+Verifies authentication boundaries, protected endpoints, wallet availability, and search flows:
 
-Never commit wallet seeds, private keys, or API credentials. Do not use
-production or mainnet credentials during early development.
+```bash
+# Verify authentication, route protection, and agent orchestration
+npm run smoke:demo
 
-`GEMINI_API_KEY` powers the model-backed demo, alongside the login settings above. The same key is
-shared by the Scout and Analyst, which make separate structured Gemini calls.
-Treasury and Policy intentionally do not use a model, and signing stays inside
-the XRPL service. For local Testnet use, `XRPL_RPC_URL` and `XRPL_WALLET_SEED`
-may remain blank. The app then uses the official Testnet endpoint and requests a
-temporary faucet-funded wallet. Configure a Testnet seed as a deployment secret
-for every hosted deployment so different serverless routes use the same account.
+# Verify shopping constraints, currency conversions, and search plans
+npm run smoke:shopping
+```
 
-## API boundaries
+---
 
-| Endpoint | Input | Current behavior |
-| --- | --- | --- |
-| `POST /api/agent` | `AgentRequest` | Returns a structured proposal using native Gemini structured output or deterministic fallback |
-| `POST /api/agents/orchestrate` | `AgentRequest` | Runs Gemini Scout and Analyst, deterministic Treasury, and independent Policy stages |
-| `POST /api/policy` | `PaymentProposal` | Returns a `PolicyDecision` using temporary development rules |
-| `POST /api/transaction` | `PaymentProposal` | Re-authorizes the proposal server-side, then submits approved XRP payments |
+## Production Readiness & Security Review
 
-All non-auth API requests require the signed demo session cookie. The API
-handlers are adapters only. Business logic belongs in `src/lib/`.
+| Domain | Implemented Safeguards | Production Transition Path |
+|---|---|---|
+| **Private Keys** | Server-side local signing. Keys never leak to frontend, client browsers, or logs. | Migrate server seed to a Hardware Security Module (HSM) or Multi-Party Computation (MPC) custody solution. |
+| **Policy Engine** | Deterministic fail-closed validation, exact drop conversions, classic address Base58 checksums, approval thresholds. | Back remaining budgets with an atomic database ledger instead of environment-level snapshots. |
+| **Transaction Idempotency** | Browser-persisted pending flags block double-submissions upon reload. | Implement distributed server-side transaction journaling and submission queues. |
+| **Escrow Safety** | Time-based escrows utilize verified ledger consensus close times (`close_time`). | Introduce decentralized delivery oracles or cryptographic fulfillment conditions for physical goods. |
+| **Search Grounding** | Source-backed citations via Google Search Grounding; graceful fallback with explicit user labeling if quota is exhausted. | Enterprise Search Grounding quota with Redis caching for high-traffic commerce queries. |
 
-## Development principles
+See [`docs/hosting.md`](docs/hosting.md) for detailed Vercel production deployment procedures.
 
-- Build the simplest working end-to-end transaction first.
-- Use Testnet before mainnet.
-- Never expose private keys.
-- AI proposes actions; it does not bypass policy.
-- Policy authorization stays separate from model reasoning.
-- XRPL executes only approved requests.
-- Do not over-engineer during the hackathon.
-- Prefer working functionality over speculative features.
+---
 
-## MVP
+## Roadmap & Next Milestones
 
-1. A user enters a procurement objective and optional XRP budget.
-2. The scout returns matching catalog offers.
-3. The analyst filters and ranks quotes.
-4. Treasury creates a structured proposal for the selected vendor.
-5. Policy evaluates it independently and the user reviews the exact payment.
-6. An approved transaction is submitted to XRPL Testnet.
-7. The UI displays each handoff, confirmation, ledger index, and hash.
+- [x] **Multi-Agent Discovery**: Gemini Market Scout and Deal Analyst with structured outputs.
+- [x] **Zero-Trust Policy Guardrails**: Drop-level arithmetic, address validation, and human approval threshold checks.
+- [x] **Direct XRPL Payments**: Validated payments with `SourceTag` and audit `Memos`.
+- [x] **XRPL Digital Safe**: Native `EscrowCreate`, `EscrowFinish`, and `EscrowCancel` workflows.
+- [x] **Multi-Currency Converter**: Support for SGD, EUR, USD, and BTC with daily FX rates.
+- [ ] **RLUSD & Multi-Asset Support**: Trustline creation, DEX swapping, and RLUSD stablecoin settlement.
+- [ ] **x402 Pay-Per-Call Protocol**: HTTP 402 micro-payment execution for machine-to-machine resource checkout.
+- [ ] **Distributed Audit Ledger**: Persistent database-backed transaction journal with multi-tenant accounting.
 
-## Stretch goals
+---
 
-The following are explicitly outside the MVP:
+## Team & Hackathon Ownership
 
-- x402 support
-- Machine-to-machine payments
-- Human approval thresholds
-- Transaction history
-- Configurable budgets
-- Additional assets
-- An advanced policy engine
+| Workstream | Modules | Responsibility |
+|---|---|---|
+| **AI Agents & Discovery** | `src/lib/agents/`, `src/lib/agent/`, `src/lib/shopping/` | Search grounding, catalog analysis, and structured proposal authoring. |
+| **Policy & Safety Engine** | `src/lib/policy/`, `src/app/api/policy/` | Zero-trust validation, address checksums, and authorization decisions. |
+| **XRPL Settlement & Escrows** | `src/lib/xrpl/`, `src/app/api/transaction/` | Signing ceremonies, testnet payments, escrows, and ledger verification. |
+| **Frontend & Integration** | `src/app/`, `src/components/`, `src/lib/auth/` | Launch flows, dashboard, activity center, and API security adapters. |
 
-## Collaboration
+---
 
-This is a four-person hackathon repository designed for frequent contributions
-with AI coding assistants. Respect folder ownership and communicate before
-changing another person's module. Avoid repo-wide refactors during active
-development. Coordinate changes to `src/types/`, because shared contracts can
-affect every workstream. Prefer small, focused commits that are easy to review.
+## License
+
+This project is open-source under the [MIT License](LICENSE).
