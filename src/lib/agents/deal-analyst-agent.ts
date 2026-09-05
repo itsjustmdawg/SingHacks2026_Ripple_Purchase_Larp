@@ -18,13 +18,16 @@ function roundScore(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
-function scoreOffer(
-  offer: CatalogOffer,
-  priceCeiling: number,
-): number {
+function scoreOffer(offer: CatalogOffer, priceCeiling: number): number {
   const uptimeScore = Math.max(0, Math.min((offer.uptimePercent - 99) / 1, 1));
-  const latencyScore = Math.max(0, Math.min((300 - offer.responseTimeMs) / 300, 1));
-  const valueScore = Math.max(0, Math.min((priceCeiling - offer.priceXrp) / priceCeiling, 1));
+  const latencyScore = Math.max(
+    0,
+    Math.min((300 - offer.responseTimeMs) / 300, 1),
+  );
+  const valueScore = Math.max(
+    0,
+    Math.min((priceCeiling - offer.priceXrp) / priceCeiling, 1),
+  );
 
   return roundScore(
     offer.reliabilityScore * 45 +
@@ -47,14 +50,16 @@ export async function runDealAnalystAgent(
   const priceCeiling = catalog.budgetXrp ?? maxCatalogPrice;
 
   const evaluations: QuoteEvaluation[] = catalog.offers.map((offer) => {
-    const eligible = catalog.budgetXrp === null || offer.priceXrp <= catalog.budgetXrp;
+    const eligible =
+      (catalog.budgetXrp === null || offer.priceXrp <= catalog.budgetXrp) &&
+      (catalog.minBudgetXrp == null || offer.priceXrp >= catalog.minBudgetXrp);
     return {
       offerId: offer.id,
       eligible,
       score: eligible ? scoreOffer(offer, priceCeiling) : null,
       summary: eligible
         ? `${offer.uptimePercent}% uptime, ${offer.responseTimeMs} ms response, ${offer.priceXrp} XRP.`
-        : `${offer.priceXrp} XRP exceeds the ${catalog.budgetXrp} XRP user budget.`,
+        : `${offer.priceXrp} XRP is outside the requested range (${catalog.minBudgetXrp ?? 0} to ${catalog.budgetXrp ?? "no maximum"} XRP).`,
     };
   });
 
@@ -84,16 +89,21 @@ export async function runDealAnalystAgent(
       modelName = model.model;
       modelSummary = ` ${decision.summary}`;
     } catch {
-      modelSummary = " Gemini was unavailable, so validated scoring selected the offer.";
+      modelSummary =
+        " Gemini was unavailable, so validated scoring selected the offer.";
     }
   }
   const selectedOffer = selectedEvaluation
-    ? (catalog.offers.find((offer) => offer.id === selectedEvaluation.offerId) ?? null)
+    ? (catalog.offers.find(
+        (offer) => offer.id === selectedEvaluation.offerId,
+      ) ?? null)
     : null;
   const excludedProviders = evaluations
     .filter((evaluation) => !evaluation.eligible)
     .map((evaluation) => {
-      const offer = catalog.offers.find((candidate) => candidate.id === evaluation.offerId);
+      const offer = catalog.offers.find(
+        (candidate) => candidate.id === evaluation.offerId,
+      );
       return offer?.provider;
     })
     .filter((provider): provider is string => Boolean(provider));
@@ -102,9 +112,10 @@ export async function runDealAnalystAgent(
     excludedProviders.length > 0
       ? ` Excluded ${excludedProviders.join(", ")} for exceeding the user budget.`
       : "";
-  const message = selectedOffer && selectedEvaluation
-    ? `Selected ${selectedOffer.provider} at ${selectedOffer.priceXrp} XRP with a ${selectedEvaluation.score}/100 validated score.${budgetSummary}${modelSummary}`
-    : `No offer satisfied the objective${catalog.budgetXrp === null ? "" : ` within ${catalog.budgetXrp} XRP`}.`;
+  const message =
+    selectedOffer && selectedEvaluation
+      ? `Selected ${selectedOffer.provider} at ${selectedOffer.priceXrp} XRP with a ${selectedEvaluation.score}/100 validated score.${budgetSummary}${modelSummary}`
+      : `No offer satisfied the objective${catalog.budgetXrp === null ? "" : ` within ${catalog.budgetXrp} XRP`}.`;
 
   return {
     analysis: { selectedOffer, evaluations },

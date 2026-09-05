@@ -8,12 +8,11 @@ export interface TransactionRequest {
 }
 
 export type TransactionStatus =
-  | "pending"
-  | "submitted"
-  | "confirmed"
-  | "failed";
+  "pending" | "submitted" | "confirmed" | "failed";
 
 export interface TransactionResult {
+  escrowSequence?: number | null;
+  cancelAfterIso?: string | null;
   transactionId: string;
   proposalId: string;
   status: TransactionStatus;
@@ -28,11 +27,7 @@ export interface TransactionResult {
 export type EscrowAction = "create" | "finish" | "cancel";
 
 export type EscrowStatus =
-  | "created"
-  | "delivery_pending"
-  | "finished"
-  | "cancelled"
-  | "failed";
+  "created" | "delivery_pending" | "finished" | "cancelled" | "failed";
 
 export interface EscrowCreateRequest {
   proposalId: string;
@@ -63,4 +58,3 @@ export interface EscrowTransactionResult extends TransactionResult {
   cancelAfterRippleTime?: number | null;
   escrowStatus?: EscrowStatus;
 }
-

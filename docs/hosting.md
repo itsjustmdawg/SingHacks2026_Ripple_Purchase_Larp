@@ -33,6 +33,17 @@ payment step manually in the dashboard after reviewing the displayed details.
 
 ## Honest submission boundaries
 
+Web research uses the existing Gemini key with Google Search grounding. It needs
+the provider's grounding entitlement/quota, which is distinct from ordinary text
+generation. The current key returned 429 during verification; enabling billing is
+an account-owner action, never performed by the setup script. When unavailable,
+the app offers a clearly labeled external Google Shopping search instead of
+fabricating agent results. No additional key is needed for daily currency rates.
+
+The two-field purchase flow calls `/api/shopping/prepare` then
+`/api/shopping/search`. Both require login; conversion previews are signed with
+`AUTH_SECRET`. Preserve this secret consistently across hosted functions.
+
 - Shared Testnet demo access, not signup, individual balances or mainnet custody.
 - Two Gemini specialists; Treasury, Policy and settlement intentionally use code.
 - Demo catalog; no physical delivery or live merchant fulfillment.

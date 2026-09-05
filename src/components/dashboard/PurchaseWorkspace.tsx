@@ -14,6 +14,28 @@ import {
   Sparkles,
   Wallet,
 } from "lucide-react";
+import { PriceFields } from "@/components/shopping/PriceFields";
+import { BudgetPreview } from "@/components/shopping/BudgetPreview";
+import { WebResults } from "@/components/shopping/WebResults";
+import type {
+  PriceBudget,
+  WebSearchResult,
+  SearchMode,
+  ShoppingResult,
+} from "@/types/shopping";
+import {
+  getEscrowSession,
+  saveEscrowSession,
+  clearEscrowSession,
+} from "@/services/escrow-session";
+import { paymentRecovery } from "@/services/recovery";
+import {
+  api,
+  RequestError,
+  clearPendingPayment,
+  savePendingPayment,
+  getPendingPayment,
+} from "@/services/purchase";
 import { PageHeader } from "@/components/ui/brand";
 import { WorkspaceNav } from "./WorkspaceNav";
 import { agents, sampleObjectives } from "@/data/product";
@@ -34,8 +56,8 @@ type Phase =
   | "review"
   | "sending"
   | "confirmed"
-  | "failed";
-
+  | "failed"
+  | "researched";
 type SettlementMode = "escrow" | "direct";
 
 type EscrowPhase =
@@ -51,10 +73,22 @@ type EscrowPhase =
 
 export function PurchaseWorkspace({
   initialObjective,
+  initialPricing = "",
+  initialMode = "web",
 }: {
   initialObjective: string;
+  initialPricing?: string;
+  initialMode?: SearchMode;
 }) {
   const [objective, setObjective] = useState(initialObjective);
+  const [pricing, setPricing] = useState(initialPricing);
+  const [mode, setMode] = useState<SearchMode>(initialMode);
+  const [budget, setBudget] = useState<PriceBudget | null>(null);
+  const [web, setWeb] = useState<WebSearchResult | null>(null);
+  const [researchNotice, setResearchNotice] = useState("");
+  const [nextStep, setNextStep] = useState("");
+  const [uncertain, setUncertain] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [wallet, setWallet] = useState<WalletView | null>(null);
   const [walletError, setWalletError] = useState("");
   const [walletLoading, setWalletLoading] = useState(true);
@@ -67,61 +101,97 @@ export function PurchaseWorkspace({
   const [verified, setVerified] = useState(false);
 
   // Escrow & Digital Safe state
-  const [settlementMode, setSettlementMode] = useState<SettlementMode>("escrow");
+  const [settlementMode, setSettlementMode] =
+    useState<SettlementMode>("escrow");
   const [pitchSeconds, setPitchSeconds] = useState<number>(30);
   const [escrowPhase, setEscrowPhase] = useState<EscrowPhase>("none");
-  const [escrowResult, setEscrowResult] = useState<EscrowTransactionResult | null>(null);
-  const [deliveryReceipt, setDeliveryReceipt] = useState<VendorDeliveryReceipt | null>(null);
+  const [escrowResult, setEscrowResult] =
+    useState<EscrowTransactionResult | null>(null);
+  const [deliveryReceipt, setDeliveryReceipt] =
+    useState<VendorDeliveryReceipt | null>(null);
   const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
 
   const lock = useRef(false);
+  const autoCancelAttempted = useRef<string | null>(null);
 
   useEffect(() => {
-    if (
-      secondsRemaining === null ||
-      secondsRemaining <= 0 ||
-      escrowPhase === "finished" ||
-      escrowPhase === "cancelled"
-    )
-      return;
-    const timer = setInterval(() => {
-      setSecondsRemaining((prev) => {
-        if (prev === null || prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    const restore = () => {
+      const saved = getEscrowSession();
+      if (!saved) return;
+      setResult(saved.pipeline);
+      setObjective(saved.objective);
+      setPricing(saved.pricing);
+      setMode("demo");
+      setSettlementMode("escrow");
+      setEscrowResult(saved.escrow);
+      setDeliveryReceipt(
+        saved.delivery ?? {
+          credentialId: "recovered",
+          accessKey: "",
+          serviceEndpoint: "",
+          deliveredAt: new Date().toISOString(),
+          status: "failed",
+          details:
+            "Recovered escrow. Mock delivery has not been verified; cancellation can be requested after its deadline.",
+        },
+      );
+      setPhase("review");
+      if (saved.escrow) {
+        setEscrowPhase(
+          saved.delivery?.status === "delivered" ? "delivered" : "locked",
+        );
+        setSecondsRemaining(
+          saved.escrow.cancelAfterIso
+            ? Math.max(
+                0,
+                Math.ceil(
+                  (Date.parse(saved.escrow.cancelAfterIso) - Date.now()) / 1000,
+                ),
+              )
+            : null,
+        );
+      }
+    };
+    restore();
+  }, []);
+  useEffect(() => {
+    if (!escrowResult?.cancelAfterIso) return;
+    const deadline = Date.parse(escrowResult.cancelAfterIso);
+    const tick = () =>
+      setSecondsRemaining(
+        Math.max(0, Math.ceil((deadline - Date.now()) / 1000)),
+      );
+    tick();
+    const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
-  }, [secondsRemaining, escrowPhase]);
+  }, [escrowResult?.cancelAfterIso]);
 
-  // When safe expires (secondsRemaining reaches 0), automatically execute refund on XRPL if not yet released
+  // While this page remains open, submit the required cancellation transaction
+  // when the ledger deadline arrives. Timeout alone does not move funds.
   useEffect(() => {
+    const attemptKey =
+      result?.proposal && escrowResult?.escrowSequence
+        ? `${result.proposal.id}:${escrowResult.escrowSequence}`
+        : null;
     if (
       secondsRemaining === 0 &&
-      result?.proposal &&
-      escrowResult?.escrowSequence &&
+      !uncertain &&
+      attemptKey &&
+      autoCancelAttempted.current !== attemptKey &&
       (escrowPhase === "locked" || escrowPhase === "delivered") &&
       !lock.current
     ) {
+      autoCancelAttempted.current = attemptKey;
       void cancelEscrow(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [secondsRemaining, result?.proposal, escrowResult?.escrowSequence, escrowPhase]);
-
-  function resetPlan(newObjective?: string) {
-    if (typeof newObjective === "string") setObjective(newObjective);
-    setResult(null);
-    setReceipt(null);
-    setPhase("idle");
-    setConfirmed(false);
-    setError("");
-    setEscrowPhase("none");
-    setEscrowResult(null);
-    setDeliveryReceipt(null);
-    setSecondsRemaining(null);
-  }
+  }, [
+    secondsRemaining,
+    uncertain,
+    result?.proposal,
+    escrowResult?.escrowSequence,
+    escrowPhase,
+  ]);
 
   async function loadWallet() {
     setWalletLoading(true);
@@ -136,6 +206,25 @@ export function PurchaseWorkspace({
   }
 
   useEffect(() => {
+    const sync = () => {
+      const pending = getPendingPayment();
+      if (pending) {
+        setReceipt(pending);
+        setUncertain(true);
+        setError(
+          "A previous payment needs verification before another one can be sent.",
+        );
+        setNextStep(
+          "Check its status or inspect wallet activity. Do not resend it blindly.",
+        );
+      }
+    };
+    sync();
+    window.addEventListener("storage", sync);
+    return () => window.removeEventListener("storage", sync);
+  }, []);
+  useEffect(() => {
+    if (mode !== "demo") return;
     let active = true;
     purchaseService
       .wallet()
@@ -151,22 +240,166 @@ export function PurchaseWorkspace({
     return () => {
       active = false;
     };
-  }, []);
-
+  }, [mode]);
+  function resetSearch() {
+    if (activeEscrow) return;
+    setEscrowPhase("none");
+    setEscrowResult(null);
+    setDeliveryReceipt(null);
+    setSecondsRemaining(null);
+    setResult(null);
+    setWeb(null);
+    setResearchNotice("");
+    setBudget(null);
+    if (!uncertain) {
+      setReceipt(null);
+      setError("");
+      setNextStep("");
+    }
+    setConfirmed(false);
+    setVerified(false);
+    setPhase("idle");
+  }
+  async function checkPayment() {
+    if (!receipt?.hash || checking) return;
+    setChecking(true);
+    try {
+      const checked = await purchaseService.verify(receipt.hash);
+      const updated = {
+        ...receipt,
+        ...checked,
+        transactionId: receipt.transactionId,
+        proposalId: receipt.proposalId,
+      };
+      setReceipt(updated);
+      saveReceipt(updated);
+      if (checked.status === "confirmed") {
+        if (receipt.escrowAction === "create") {
+          const escrow = {
+            ...updated,
+            escrowSequence: checked.escrowSequence ?? receipt.escrowSequence,
+          };
+          setEscrowResult(escrow);
+          setEscrowPhase("locked");
+          setPhase("review");
+          setReceipt(null);
+          setDeliveryReceipt({
+            credentialId: "recovered",
+            accessKey: "",
+            serviceEndpoint: "",
+            deliveredAt: new Date().toISOString(),
+            status: "failed",
+            details:
+              "Escrow creation recovered. Delivery is unverified; cancellation remains available after the deadline.",
+          });
+          if (result)
+            saveEscrowSession({
+              pipeline: result,
+              objective,
+              pricing,
+              escrow,
+              delivery: deliveryReceipt,
+            });
+        } else {
+          setPhase("confirmed");
+          if (receipt.escrowAction) {
+            setEscrowPhase(
+              receipt.escrowAction === "cancel" ? "cancelled" : "finished",
+            );
+            clearEscrowSession();
+          }
+        }
+        setVerified(true);
+        setUncertain(false);
+        clearPendingPayment();
+        setError("");
+        setNextStep("");
+        void loadWallet();
+      } else if (checked.status === "failed" && checked.ledgerIndex !== null) {
+        if (receipt.escrowAction === "create") {
+          clearEscrowSession();
+          setEscrowPhase("none");
+        } else if (receipt.escrowAction) {
+          setReceipt(null);
+          setEscrowPhase("locked");
+          setPhase("review");
+        }
+        setUncertain(false);
+        clearPendingPayment();
+        setError(checked.error || "The ledger confirmed this payment failed.");
+        setNextStep(
+          "The network fee may have been charged. Fix the cause and research again for a fresh proposal.",
+        );
+      } else {
+        setError(checked.error || "The result is still uncertain.");
+        setNextStep(
+          "Retry this status check later. It only reads the ledger and will never send another payment.",
+        );
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Status check unavailable.");
+      setNextStep(
+        "Retry the status check, or use the explorer link. Do not submit another payment yet.",
+      );
+    } finally {
+      setChecking(false);
+    }
+  }
   async function analyze() {
-    if (lock.current || !objective.trim()) return;
+    if (lock.current || activeEscrow || !objective.trim() || !pricing.trim())
+      return;
     lock.current = true;
     setPhase("analyzing");
-    resetPlan();
+    setResult(null);
+    if (!uncertain) setReceipt(null);
+    setWeb(null);
+    setResearchNotice("");
+    setBudget(null);
+    setNextStep("");
+    setConfirmed(false);
+    setError("");
+    setVerified(false);
     try {
-      const r = await purchaseService.analyze(objective.trim());
+      const prepared = await api<{ budget: PriceBudget; token: string }>(
+        "/api/shopping/prepare",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            item: objective.trim(),
+            pricing: pricing.trim(),
+            mode,
+          }),
+        },
+      );
+      setBudget(prepared.budget);
+      const data = await api<ShoppingResult>("/api/shopping/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: prepared.token }),
+      });
+      if (data.web) {
+        setBudget(data.budget);
+        setWeb(data.web);
+        setPhase("researched");
+        return;
+      }
+      const r = data.demo;
+      if (!r)
+        throw new Error(
+          "The search returned an incomplete result. Retry research.",
+        );
+      if (data.fallbackReason) {
+        setMode("demo");
+        setResearchNotice(data.fallbackReason);
+      }
       setResult(r);
       if (!r.proposal) {
         setPhase("failed");
         setError(
           r.catalog.offers.length === 0
-            ? "No matching product is in the demo catalog. Try storage, API credits, compute, analytics or a chair."
-            : "Your agents found options, but none fit your budget. Increase the budget or change the request.",
+            ? "This item is not in the fixed Testnet demo catalog. Switch to Web search to research any product category."
+            : "No demo offer fits your complete price range. Adjust the minimum or maximum, or switch to Web search.",
         );
       } else if (!r.policyDecision?.approved) {
         setPhase("failed");
@@ -174,10 +407,23 @@ export function PurchaseWorkspace({
           "This proposal did not pass the policy check. The rule results below explain why.",
         );
       } else setPhase("review");
+      if (!r.proposal)
+        setNextStep(
+          "Choose Web search for real listings, or edit the item and price fields, then retry.",
+        );
+      else if (!r.policyDecision?.approved)
+        setNextStep(
+          "Read the policy checks below. The shared demo has separate spending limits; changing currency does not override them. Adjust the request and research again.",
+        );
     } catch (e) {
       setPhase("failed");
       setError(
         e instanceof Error ? e.message : "Unable to complete the search.",
+      );
+      setNextStep(
+        e instanceof RequestError
+          ? e.nextStep
+          : "Retry research, or edit the item and price. No payment was sent.",
       );
     } finally {
       lock.current = false;
@@ -187,12 +433,39 @@ export function PurchaseWorkspace({
   async function payDirect() {
     if (
       lock.current ||
+      uncertain ||
+      mode !== "demo" ||
+      !wallet?.isFunded ||
       !confirmed ||
       phase !== "review" ||
       !result?.proposal ||
       !result.policyDecision?.approved
     )
       return;
+    const pending: Receipt = {
+      transactionId: "attempt:" + result.proposal.id,
+      proposalId: result.proposal.id,
+      status: "pending",
+      hash: null,
+      ledgerIndex: null,
+      explorerUrl: null,
+      submittedAt: new Date().toISOString(),
+      confirmedAt: null,
+      error: null,
+      objective,
+      provider: result.analysis.selectedOffer?.provider ?? "Demo provider",
+      amount: result.proposal.amount,
+      walletAddress: wallet.address,
+    };
+    if (!savePendingPayment(pending)) {
+      setError(
+        "Browser storage is unavailable, so we cannot safely track an interrupted payment.",
+      );
+      setNextStep(
+        "Enable site storage, refresh, and review the proposal again. No payment was sent.",
+      );
+      return;
+    }
     lock.current = true;
     setPhase("sending");
     setError("");
@@ -200,12 +473,29 @@ export function PurchaseWorkspace({
       const tx = await purchaseService.submit(result.proposal);
       const r: Receipt = {
         ...tx,
+        walletAddress: wallet.address,
         objective,
         provider: result.analysis.selectedOffer?.provider ?? "Catalog provider",
         amount: result.proposal.amount,
       };
       setReceipt(r);
       const stored = saveReceipt(r);
+      if (
+        tx.status === "confirmed" ||
+        (!tx.hash && !tx.submittedAt) ||
+        (tx.status === "failed" && tx.ledgerIndex !== null)
+      ) {
+        clearPendingPayment();
+        setUncertain(false);
+      } else {
+        savePendingPayment(r);
+        setUncertain(true);
+      }
+      setNextStep(
+        tx.hash
+          ? "Check payment status below. A status retry only reads the ledger."
+          : "No transaction was submitted. Fix the reported balance, destination or connection problem, refresh the wallet, then research and review again.",
+      );
       if (tx.status !== "confirmed") {
         setPhase("failed");
         setError(
@@ -229,6 +519,20 @@ export function PurchaseWorkspace({
         void loadWallet();
       }
     } catch (e) {
+      const safe =
+        e instanceof RequestError && [400, 401, 403].includes(e.status);
+      if (safe) {
+        clearPendingPayment();
+        setUncertain(false);
+      } else {
+        setUncertain(true);
+        setReceipt(pending);
+      }
+      setNextStep(
+        safe
+          ? "Sign in if needed, then research and review a fresh proposal."
+          : "Open wallet activity or the explorer first. A lost response does not mean the transaction failed; do not pay again until checked.",
+      );
       setPhase("failed");
       setError(
         (e instanceof Error ? e.message : "The response was interrupted.") +
@@ -239,142 +543,283 @@ export function PurchaseWorkspace({
     }
   }
 
+  function escrowAttempt(
+    action: "create" | "finish" | "cancel",
+  ): Receipt | null {
+    if (!result?.proposal || !wallet || uncertain) return null;
+    const pending: Receipt = {
+      transactionId: "attempt:" + action + ":" + result.proposal.id,
+      proposalId: result.proposal.id,
+      status: "pending",
+      hash: null,
+      ledgerIndex: null,
+      explorerUrl: null,
+      submittedAt: new Date().toISOString(),
+      confirmedAt: null,
+      error: null,
+      objective,
+      provider: result.analysis.selectedOffer?.provider ?? "Demo provider",
+      amount: result.proposal.amount,
+      walletAddress: wallet.address,
+      escrowAction: action,
+      escrowSequence: escrowResult?.escrowSequence,
+    };
+    if (
+      !saveEscrowSession({
+        pipeline: result,
+        objective,
+        pricing,
+        escrow: escrowResult,
+        delivery: deliveryReceipt,
+      }) ||
+      !savePendingPayment(pending)
+    ) {
+      setError("Enable browser storage before starting a ledger action.");
+      setNextStep(
+        "No transaction was sent. Storage is needed to recover an interrupted request.",
+      );
+      return null;
+    }
+    return pending;
+  }
+  function escrowError(e: unknown, pending: Receipt) {
+    const tx = e instanceof RequestError ? e.transaction : undefined;
+    const knownFailure =
+      (tx?.status === "failed" && (!tx.hash || tx.ledgerIndex !== null)) ||
+      (e instanceof RequestError && [400, 401, 403].includes(e.status));
+    setError(
+      e instanceof Error ? e.message : "The escrow response was interrupted.",
+    );
+    setPhase(pending.escrowAction === "create" ? "failed" : "review");
+    setEscrowPhase(pending.escrowAction === "create" ? "none" : "locked");
+    if (knownFailure) {
+      clearPendingPayment();
+      setUncertain(false);
+      if (pending.escrowAction === "create") clearEscrowSession();
+      setNextStep(
+        pending.escrowAction === "cancel"
+          ? "Wait until the validated ledger passes the cancel deadline, then retry cancellation. Network fees may apply."
+          : pending.escrowAction === "finish"
+            ? "Check the escrow timing and mock delivery result before retrying release. A known ledger rejection is not a lost response."
+            : "Fix the balance, policy or connection issue, then research and review again.",
+      );
+    } else {
+      const r: Receipt = { ...pending, ...tx };
+      setReceipt(r);
+      savePendingPayment(r);
+      saveReceipt(r);
+      setUncertain(true);
+      setNextStep(
+        "The outcome is uncertain. Retry the read-only status check or inspect wallet activity before another ledger action.",
+      );
+    }
+  }
   async function lockEscrow() {
     if (
       lock.current ||
+      uncertain ||
+      mode !== "demo" ||
+      !wallet?.isFunded ||
       !confirmed ||
       phase !== "review" ||
       !result?.proposal ||
       !result.policyDecision?.approved
     )
       return;
+    const pending = escrowAttempt("create");
+    if (!pending) return;
     lock.current = true;
     setPhase("sending");
     setEscrowPhase("locking");
-    setEscrowResult(null);
-    setDeliveryReceipt(null);
     setError("");
-
+    setNextStep("");
     try {
       const res = await purchaseService.lockEscrow(
         result.proposal,
         pitchSeconds,
       );
+      if (res.status !== "confirmed")
+        throw new RequestError(
+          res.error || "Escrow creation not confirmed.",
+          422,
+          "Check status",
+          res,
+        );
       setEscrowResult(res);
-      setEscrowPhase("delivering");
-      setSecondsRemaining(pitchSeconds);
       setPhase("review");
+      setEscrowPhase("locked");
+      setSecondsRemaining(
+        res.cancelAfterIso
+          ? Math.max(
+              0,
+              Math.ceil((Date.parse(res.cancelAfterIso) - Date.now()) / 1000),
+            )
+          : pitchSeconds,
+      );
+      saveEscrowSession({
+        pipeline: result,
+        objective,
+        pricing,
+        escrow: res,
+        delivery: null,
+      });
+      clearPendingPayment();
+      setUncertain(false);
+      setEscrowPhase("delivering");
       void loadWallet();
-
-      // Automatically simulate provider delivery
       try {
-        const dReceipt = await purchaseService.deliver(
-          result.proposal.id,
+        const delivered = await purchaseService.deliver(
+          result.analysis.selectedOffer?.id ?? result.proposal.id,
           false,
         );
-        setDeliveryReceipt(dReceipt);
+        setDeliveryReceipt(delivered);
         setEscrowPhase("delivered");
+        saveEscrowSession({
+          pipeline: result,
+          objective,
+          pricing,
+          escrow: res,
+          delivery: delivered,
+        });
       } catch {
         setEscrowPhase("locked");
+        setDeliveryReceipt({
+          credentialId: "mock-unavailable",
+          accessKey: "",
+          serviceEndpoint: "",
+          deliveredAt: new Date().toISOString(),
+          status: "failed",
+          details:
+            "Mock delivery unavailable. Keep funds locked or request cancellation after the ledger deadline.",
+        });
+        setError(
+          "Escrow is locked, but the demo delivery service did not respond.",
+        );
+        setNextStep(
+          "Do not create another escrow. You can cancel this one after its ledger deadline.",
+        );
       }
     } catch (e) {
-      setPhase("failed");
-      setEscrowPhase("none");
-      setError(
-        e instanceof Error ? e.message : "Unable to lock escrow safe on XRPL.",
-      );
+      escrowError(e, pending);
     } finally {
       lock.current = false;
     }
   }
-
   async function releaseEscrow() {
-    if (lock.current || !result?.proposal || !escrowResult?.escrowSequence) return;
+    if (
+      lock.current ||
+      uncertain ||
+      !result?.proposal ||
+      !escrowResult?.escrowSequence ||
+      deliveryReceipt?.status !== "delivered"
+    )
+      return;
+    const pending = escrowAttempt("finish");
+    if (!pending) return;
     lock.current = true;
     setEscrowPhase("releasing");
     setError("");
-
+    setNextStep("");
     try {
       const res = await purchaseService.releaseEscrow(
         result.proposal.id,
         escrowResult.escrowSequence,
-        `Service verified: ${deliveryReceipt?.credentialId ?? result.proposal.id}`,
+        "Mock delivery acknowledged by user.",
       );
+      if (res.status !== "confirmed")
+        throw new RequestError(
+          res.error || "Release not confirmed.",
+          422,
+          "Check status",
+          res,
+        );
       setEscrowResult(res);
       setEscrowPhase("finished");
       setPhase("confirmed");
-
-      const r: Receipt = {
-        ...res,
-        objective,
-        provider: result.analysis.selectedOffer?.provider ?? "Catalog provider",
-        amount: result.proposal.amount,
-      };
+      const r: Receipt = { ...pending, ...res };
       setReceipt(r);
       saveReceipt(r);
+      clearPendingPayment();
+      clearEscrowSession();
+      setUncertain(false);
       void loadWallet();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to release escrow payment.");
-      setEscrowPhase("delivered");
+      escrowError(e, pending);
     } finally {
       lock.current = false;
     }
   }
-
   async function cancelEscrow(simulateGhosting = false) {
-    if (lock.current || !result?.proposal || !escrowResult?.escrowSequence) return;
-
-    if (simulateGhosting && secondsRemaining !== null && secondsRemaining > 5) {
-      setDeliveryReceipt({
-        credentialId: `sim-fail-${Date.now()}`,
-        accessKey: "",
-        serviceEndpoint: "https://offline-vendor.mock/timeout",
-        deliveredAt: new Date().toISOString(),
-        status: "failed",
-        details: `Simulated seller dropout: Vendor endpoint unreachable. Automatic refund will execute on XRPL in ${secondsRemaining}s once the lock window expires.`,
-      });
-      setEscrowPhase("locked");
+    if (
+      lock.current ||
+      uncertain ||
+      !result?.proposal ||
+      !escrowResult?.escrowSequence
+    )
+      return;
+    if (secondsRemaining !== 0) {
+      setError("Cancellation is not yet eligible.");
+      setNextStep(
+        "Wait for the countdown, then retry. The ledger clock determines eligibility.",
+      );
       return;
     }
-
+    const pending = escrowAttempt("cancel");
+    if (!pending) return;
     lock.current = true;
     setEscrowPhase("cancelling");
     setError("");
-
-    if (simulateGhosting || (!deliveryReceipt || deliveryReceipt.status !== "delivered")) {
-      setDeliveryReceipt((prev) => ({
-        credentialId: prev?.credentialId ?? `timeout-${Date.now()}`,
+    setNextStep("");
+    if (
+      simulateGhosting ||
+      !deliveryReceipt ||
+      deliveryReceipt.status !== "delivered"
+    )
+      setDeliveryReceipt({
+        credentialId: deliveryReceipt?.credentialId ?? `timeout-${Date.now()}`,
         accessKey: "",
-        serviceEndpoint: prev?.serviceEndpoint ?? "https://offline-vendor.mock/timeout",
+        serviceEndpoint:
+          deliveryReceipt?.serviceEndpoint ??
+          "https://offline-vendor.mock/timeout",
         deliveredAt: new Date().toISOString(),
         status: "failed",
         details:
-          "Escrow safe expired: Automatic refund guarantee executed on XRPL.",
-      }));
-    }
-
+          "Non-delivery recorded. The application is submitting the required XRPL cancellation transaction after the deadline.",
+      });
     try {
       const res = await purchaseService.cancelEscrow(
         result.proposal.id,
         escrowResult.escrowSequence,
-        "Cancellation & refund: delivery timeout or non-delivery.",
+        "User requested cancellation after the deadline.",
       );
+      if (res.status !== "confirmed")
+        throw new RequestError(
+          res.error || "Cancellation not confirmed.",
+          422,
+          "Check status",
+          res,
+        );
       setEscrowResult(res);
       setEscrowPhase("cancelled");
       setPhase("confirmed");
-
-      const r: Receipt = {
-        ...res,
-        objective,
-        provider: result.analysis.selectedOffer?.provider ?? "Catalog provider",
-        amount: result.proposal.amount,
-      };
+      setDeliveryReceipt((previous) =>
+        previous
+          ? {
+              ...previous,
+              details:
+                "XRPL cancellation confirmed. Escrow principal returned; network fees are not refunded.",
+            }
+          : previous,
+      );
+      const r: Receipt = { ...pending, ...res };
       setReceipt(r);
       saveReceipt(r);
+      clearPendingPayment();
+      clearEscrowSession();
+      setUncertain(false);
       void loadWallet();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to cancel escrow on XRPL.");
-      setEscrowPhase("locked");
+      escrowError(e, pending);
     } finally {
       lock.current = false;
     }
@@ -395,11 +840,20 @@ export function PurchaseWorkspace({
     escrowPhase === "releasing" ||
     escrowPhase === "cancelling";
 
+  const activeEscrow = [
+    "locked",
+    "delivering",
+    "delivered",
+    "releasing",
+    "cancelling",
+  ].includes(escrowPhase);
+  const editingLocked = busy || activeEscrow;
   const isSettled =
     phase === "confirmed" ||
     escrowPhase === "finished" ||
     escrowPhase === "cancelled";
 
+  const recovery = paymentRecovery(receipt, uncertain);
   const current =
     phase === "idle"
       ? 0
@@ -421,16 +875,19 @@ export function PurchaseWorkspace({
       <PageHeader
         eyebrow="YOUR WORKSPACE"
         title="What can we take off your plate?"
-        description="Give your team a clear objective. They’ll compare the options and bring a payment proposal back for your review."
+        description="Tell us what you need and your price range in your currency. Research the web, or explicitly choose the Testnet payment demo."
       />
       <div className="purchase-progress">
-        {[
-          "Your objective",
-          "Agent research",
-          "Your review",
-          settlementMode === "escrow" ? "Digital Safe" : "XRPL payment",
-          "Receipt",
-        ].map((s, i) => (
+        {(mode === "web"
+          ? ["Item & price", "Web research", "Compare & visit seller"]
+          : [
+              "Your objective",
+              "Agent research",
+              "Your review",
+              settlementMode === "escrow" ? "Digital Safe" : "XRPL payment",
+              "Receipt",
+            ]
+        ).map((s, i) => (
           <div className={i <= current ? "step-active" : ""} key={s}>
             <span>{i < current ? <Check size={12} /> : i + 1}</span>
             {s}
@@ -442,8 +899,8 @@ export function PurchaseWorkspace({
           <section className="panel">
             <h2>Start with what you need.</h2>
             <p className="panel-subtitle">
-              Try a product, the features that matter, and a maximum budget in
-              XRP.
+              Two fields. Any product category. Your price range stays separate
+              from your item requirements.
             </p>
             <form
               onSubmit={(e) => {
@@ -451,27 +908,53 @@ export function PurchaseWorkspace({
                 void analyze();
               }}
             >
-              <label className="field">
-                Purchase objective
-                <textarea
-                  required
-                  maxLength={2000}
-                  disabled={busy}
-                  value={objective}
-                  onChange={(e) => resetPlan(e.target.value)}
-                  placeholder="Find the best cloud storage under 5 XRP"
-                />
-              </label>
+              <fieldset className="search-mode" disabled={editingLocked}>
+                <legend>Where should your agents search?</legend>
+                {(["web", "demo"] as const).map((m) => (
+                  <label key={m}>
+                    <input
+                      type="radio"
+                      name="search-mode"
+                      checked={mode === m}
+                      onChange={() => {
+                        resetSearch();
+                        setMode(m);
+                      }}
+                    />
+                    {m === "web"
+                      ? "Web search · real sources"
+                      : "Testnet demo · sample catalog"}
+                  </label>
+                ))}
+              </fieldset>
+              <PriceFields
+                item={objective}
+                pricing={pricing}
+                disabled={editingLocked}
+                onItem={(value) => {
+                  resetSearch();
+                  setObjective(value);
+                }}
+                onPricing={(value) => {
+                  resetSearch();
+                  setPricing(value);
+                }}
+              />
               <div className="chips">
                 {sampleObjectives.map((x) => (
                   <button
                     className="chip"
-                    disabled={busy}
+                    disabled={editingLocked}
                     type="button"
                     key={x.label}
-                    onClick={() => resetPlan(x.text)}
+                    onClick={() => {
+                      resetSearch();
+                      setObjective(x.text.replace(/\s+under.*$/i, ""));
+                      setPricing("max 5 XRP");
+                      setMode("demo");
+                    }}
                   >
-                    {x.label}
+                    Demo: {x.label}
                   </button>
                 ))}
               </div>
@@ -479,7 +962,9 @@ export function PurchaseWorkspace({
                 <small>No payment is made during research.</small>
                 <button
                   className="button button-primary"
-                  disabled={busy || !objective.trim()}
+                  disabled={
+                    editingLocked || !objective.trim() || !pricing.trim()
+                  }
                   type="submit"
                 >
                   {phase === "analyzing" ? (
@@ -496,14 +981,26 @@ export function PurchaseWorkspace({
                 </button>
               </div>
             </form>
+            {budget && <BudgetPreview budget={budget} />}
+            {researchNotice && (
+              <div className="live-stage" role="status">
+                <ShieldAlert size={22} />
+                <div>
+                  <strong>Safe fallback used</strong>
+                  <p>{researchNotice}</p>
+                </div>
+              </div>
+            )}
             {phase === "analyzing" && (
               <div className="live-stage" role="status">
                 <LoaderCircle className="spin" size={22} />
                 <div>
                   <strong>Your team is researching.</strong>
                   <p>
-                    Scout and Analyst are comparing the catalog. This can take
-                    15–45 seconds. Their decision summaries will appear here.
+                    {budget
+                      ? "Scout is gathering sources and Analyst is comparing prices. This may take up to 50 seconds."
+                      : "Interpreting your price and checking currency rates…"}{" "}
+                    No payment is being sent.
                   </p>
                 </div>
               </div>
@@ -511,12 +1008,133 @@ export function PurchaseWorkspace({
             {error && (
               <div className="form-error" role="alert">
                 {error}
+                {nextStep && (
+                  <p className="recovery-next">
+                    <strong>What to do next:</strong> {nextStep}
+                  </p>
+                )}
+                {mode === "web" && (
+                  <p>
+                    <a
+                      className="text-link"
+                      href={
+                        "https://www.google.com/search?tbm=shop&q=" +
+                        encodeURIComponent(objective + " " + pricing)
+                      }
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Open this query in Google Shopping ↗
+                    </a>
+                    <small className="notice-inline">
+                      {" "}
+                      Opens an external search, not an agent-generated result.
+                    </small>
+                  </p>
+                )}
+                {uncertain && (receipt?.walletAddress || wallet?.address) && (
+                  <p>
+                    <a
+                      className="text-link"
+                      href={
+                        "https://testnet.xrpl.org/accounts/" +
+                        encodeURIComponent(
+                          receipt?.walletAddress || wallet?.address || "",
+                        )
+                      }
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Inspect this wallet’s ledger activity ↗
+                    </a>
+                  </p>
+                )}
+                <div className="recovery-actions">
+                  {recovery === "verify" && receipt?.hash ? (
+                    <button
+                      className="button button-ghost"
+                      disabled={checking || busy}
+                      onClick={() => void checkPayment()}
+                    >
+                      <RefreshCw size={15} />
+                      {checking ? "Checking…" : "Retry payment status check"}
+                    </button>
+                  ) : (
+                    !uncertain && !activeEscrow && (
+                      <button
+                        className="button button-ghost"
+                        disabled={busy}
+                        onClick={() => void analyze()}
+                      >
+                        <RefreshCw size={15} />
+                        Retry research · no payment
+                      </button>
+                    )
+                  )}
+                  <button
+                    className="button button-ghost"
+                    disabled={busy}
+                    onClick={() =>
+                      document.getElementById("shopping-price")?.focus()
+                    }
+                  >
+                    Edit price / request
+                  </button>
+                  {activeEscrow&&!uncertain&&<><button className="button button-ghost" disabled={busy||deliveryReceipt?.status!=='delivered'||secondsRemaining===0} onClick={()=>void releaseEscrow()}>Retry escrow release</button><button className="button button-ghost" disabled={busy||secondsRemaining!==0} onClick={()=>void cancelEscrow()}>Retry escrow cancellation</button></>}
+                  {mode === "demo" && !uncertain && !activeEscrow && (
+                    <button
+                      className="button button-ghost"
+                      disabled={busy}
+                      onClick={() => {
+                        resetSearch();
+                        setMode("web");
+                      }}
+                    >
+                      Switch to web search
+                    </button>
+                  )}
+                  {uncertain && !receipt?.hash && (
+                    <>
+                      <Link className="button button-ghost" href="/activity">
+                        Inspect wallet / transaction activity
+                      </Link>
+                      <button
+                        className="button button-ghost"
+                        disabled={busy}
+                        onClick={() => {
+                          if (
+                            window.confirm(
+                              "Only continue if you have checked the wallet’s ledger activity and confirmed the previous payment will not be duplicated. Have you checked?",
+                            )
+                          ) {
+                            clearPendingPayment();
+                            setUncertain(false);
+                            setReceipt(null);
+                            setResult(null);
+                            setPhase("idle");
+                            setError("");
+                            setNextStep("");
+                          }
+                        }}
+                      >
+                        I checked the ledger — resume
+                      </button>
+                    </>
+                  )}
+                </div>
                 {error.includes("sign in") && (
                   <Link href="/login"> Sign in again →</Link>
                 )}
               </div>
             )}
           </section>
+          {web && (
+            <WebResults
+              result={web}
+              retry={() => void analyze()}
+              disabled={busy}
+            />
+          )}
           {result && (
             <section className="panel" style={{ marginTop: 24 }}>
               <h2>Your team’s findings</h2>
@@ -635,6 +1253,7 @@ export function PurchaseWorkspace({
                   >
                     <button
                       type="button"
+                      disabled={editingLocked}
                       onClick={() => setSettlementMode("escrow")}
                       className={
                         "quote " +
@@ -677,13 +1296,14 @@ export function PurchaseWorkspace({
                           margin: "8px 0 0",
                         }}
                       >
-                        Locked on XRPL. Auto-refunds if seller ghosts or
-                        delivery fails.
+                        Locked on XRPL. The app can submit cancellation after
+                        the deadline while this page remains open.
                       </p>
                     </button>
 
                     <button
                       type="button"
+                      disabled={editingLocked}
                       onClick={() => setSettlementMode("direct")}
                       className={
                         "quote " +
@@ -741,7 +1361,7 @@ export function PurchaseWorkspace({
                       }}
                     >
                       <span style={{ color: "var(--muted)" }}>
-                        Auto-Refund Guarantee Window:
+                        Cancellation eligibility window:
                       </span>
                       <div style={{ display: "flex", gap: 8 }}>
                         <button
@@ -806,7 +1426,7 @@ export function PurchaseWorkspace({
                 <dt>Settlement</dt>
                 <dd>
                   {settlementMode === "escrow"
-                    ? `Native XRPL Escrow Safe (${pitchSeconds}s refund guarantee)`
+                    ? `Native XRPL Escrow Safe (${pitchSeconds}s cancellation window)`
                     : "Direct XRPL Payment"}
                 </dd>
               </dl>
@@ -879,7 +1499,9 @@ export function PurchaseWorkspace({
                             gap: 8,
                           }}
                         >
-                          <strong style={{ fontSize: 13, color: "var(--text)" }}>
+                          <strong
+                            style={{ fontSize: 13, color: "var(--text)" }}
+                          >
                             Funds Locked in XRPL Digital Safe
                           </strong>
                           {escrowResult?.escrowSequence && (
@@ -906,7 +1528,7 @@ export function PurchaseWorkspace({
                           <strong style={{ color: "var(--amber)" }}>
                             {formatXrp(result?.proposal?.amount)} XRP
                           </strong>{" "}
-                          · Unspendable by seller until verified
+                          · Time-based escrow; demo delivery check
                         </p>
                       </div>
                     </div>
@@ -920,7 +1542,7 @@ export function PurchaseWorkspace({
                           color: "var(--dim)",
                         }}
                       >
-                        Auto-refund in
+                        Refund eligible in
                       </span>
                       <div
                         style={{
@@ -1020,7 +1642,7 @@ export function PurchaseWorkspace({
                       >
                         {deliveryReceipt.status === "failed"
                           ? "Seller Delivery Failed"
-                          : "Service Delivery Handshake Verified"}
+                          : "Simulated delivery received"}
                       </strong>
                       <span
                         className="tag"
@@ -1106,7 +1728,12 @@ export function PurchaseWorkspace({
                           fontSize: 12,
                           gap: 8,
                         }}
-                        disabled={busy}
+                        disabled={
+                          busy ||
+                          uncertain ||
+                          deliveryReceipt?.status !== "delivered" ||
+                          secondsRemaining === 0
+                        }
                         onClick={() => void releaseEscrow()}
                       >
                         {escrowPhase === "releasing" ? (
@@ -1132,7 +1759,7 @@ export function PurchaseWorkspace({
                           fontSize: 12,
                           gap: 8,
                         }}
-                        disabled={busy}
+                        disabled={busy || uncertain || secondsRemaining !== 0}
                         onClick={() => void cancelEscrow(true)}
                       >
                         {escrowPhase === "cancelling" ? (
@@ -1168,13 +1795,17 @@ export function PurchaseWorkspace({
                           <strong style={{ color: "var(--amber)" }}>
                             {formatXrp(result.proposal.amount)} XRP
                           </strong>{" "}
-                          into the on-chain XRPL Digital Safe. Funds are released
-                          only upon verified delivery, with 100% refund guarantee.
+                          into the on-chain XRPL Digital Safe. Funds are
+                          released by a separate finish transaction. This
+                          prototype uses a simulated delivery check;
+                          cancellation requires another transaction after the
+                          deadline.
                         </>
                       ) : (
                         <>
                           I have reviewed this recipient and amount. I authorize
-                          this direct Testnet payment from the shared demo wallet.
+                          this direct Testnet payment from the shared demo
+                          wallet.
                         </>
                       )}
                     </span>
@@ -1183,7 +1814,10 @@ export function PurchaseWorkspace({
                   <button
                     className="button button-primary full-width"
                     disabled={
-                      !confirmed || phase !== "review" || !wallet?.isFunded
+                      uncertain ||
+                      !confirmed ||
+                      phase !== "review" ||
+                      !wallet?.isFunded
                     }
                     onClick={() => handlePay()}
                   >
@@ -1204,7 +1838,8 @@ export function PurchaseWorkspace({
                           </>
                         ) : (
                           <>
-                            Approve & pay {formatXrp(result.proposal.amount)} XRP
+                            Approve & pay {formatXrp(result.proposal.amount)}{" "}
+                            XRP
                             <ArrowUpRight size={17} />
                           </>
                         )}
@@ -1239,16 +1874,16 @@ export function PurchaseWorkspace({
                 {escrowPhase === "finished"
                   ? "Digital Safe: Payment Released & Verified."
                   : escrowPhase === "cancelled"
-                    ? "Digital Safe: 100% Refunded."
+                    ? "Digital Safe: Escrow principal returned."
                     : receipt.status === "confirmed"
                       ? "Payment confirmed."
                       : "Payment needs attention."}
               </h2>
               <p className="panel-subtitle">
                 {escrowPhase === "finished"
-                  ? `Escrow #${escrowResult?.escrowSequence ?? "—"} settled on XRPL Testnet. Service credentials active.`
+                  ? `Escrow #${escrowResult?.escrowSequence ?? "—"} settled on XRPL Testnet. Demo delivery was simulated.`
                   : escrowPhase === "cancelled"
-                    ? `Zero counterparty risk. 100% of ${formatXrp(receipt.amount)} XRP restored directly to spendable wallet.`
+                    ? `Escrow principal of ${formatXrp(receipt.amount)} XRP returned. Transaction fees are not refunded.`
                     : verified
                       ? "Verified independently on XRPL Testnet."
                       : "Your settlement result is recorded below."}
@@ -1273,6 +1908,24 @@ export function PurchaseWorkspace({
                 <dd>{receipt.ledgerIndex ?? "Not yet available"}</dd>
               </dl>
               <div className="receipt-actions">
+                {receipt.hash && receipt.status !== "confirmed" && (
+                  <button
+                    className="button button-ghost"
+                    disabled={checking || busy}
+                    onClick={() => void checkPayment()}
+                  >
+                    {checking ? "Checking…" : "Retry status check"}
+                  </button>
+                )}
+                {receipt.status === "failed" && !uncertain && (
+                  <button
+                    className="button button-ghost"
+                    disabled={busy}
+                    onClick={() => void analyze()}
+                  >
+                    Research & review a new attempt
+                  </button>
+                )}
                 {receipt.hash && (
                   <a
                     className="button button-ghost"
@@ -1296,66 +1949,86 @@ export function PurchaseWorkspace({
           )}
         </div>
         <aside className="side-stack">
-          <section className="panel wallet-panel">
-            <div className="panel-heading">
-              <span>
-                <Wallet size={18} />
-                Demo wallet
-              </span>
-              <button
-                className="icon-button"
-                disabled={walletLoading}
-                aria-label="Refresh wallet"
-                onClick={() => void loadWallet()}
-              >
-                <RefreshCw size={14} className={walletLoading ? "spin" : ""} />
-              </button>
-            </div>
-            {wallet ? (
-              <>
-                <div className="wallet-amount">
-                  {formatXrp(wallet.balanceXrp)}
-                  <small> XRP</small>
-                </div>
-                <div className="wallet-facts">
-                  <span>{formatXrp(wallet.spendableXrp)} available</span>
-                  <span>{formatXrp(wallet.reservedXrp)} reserved</span>
-                </div>
-                <div className="wallet-address">
-                  <span>
-                    {wallet.address.slice(0, 12)}…{wallet.address.slice(-8)}
-                  </span>
+          {mode === "demo" && (
+            <section className="panel wallet-panel">
+              <div className="panel-heading">
+                <span>
+                  <Wallet size={18} />
+                  Demo wallet
+                </span>
+                <button
+                  className="icon-button"
+                  disabled={walletLoading}
+                  aria-label="Refresh wallet"
+                  onClick={() => void loadWallet()}
+                >
+                  <RefreshCw
+                    size={14}
+                    className={walletLoading ? "spin" : ""}
+                  />
+                </button>
+              </div>
+              {wallet ? (
+                <>
+                  <div className="wallet-amount">
+                    {formatXrp(wallet.balanceXrp)}
+                    <small> XRP</small>
+                  </div>
+                  <div className="wallet-facts">
+                    <span>{formatXrp(wallet.spendableXrp)} available</span>
+                    <span>{formatXrp(wallet.reservedXrp)} reserved</span>
+                  </div>
+                  <div className="wallet-address">
+                    <span>
+                      {wallet.address.slice(0, 12)}…{wallet.address.slice(-8)}
+                    </span>
+                    <button
+                      className="icon-button"
+                      aria-label="Copy wallet address"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(wallet.address);
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 2000);
+                        } catch {
+                          setWalletError(
+                            "Clipboard unavailable. Wallet: " + wallet.address,
+                          );
+                        }
+                      }}
+                    >
+                      {copied ? <Check size={14} /> : <Copy size={14} />}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <p className="panel-subtitle" role="status">
+                  {walletLoading ? "Connecting to XRPL Testnet…" : walletError}
+                </p>
+              )}
+              {wallet && walletError && (
+                <p className="notice-inline">{walletError}</p>
+              )}
+              {walletError && (
+                <div className="recovery-actions">
+                  <p className="notice-inline">
+                    Check your connection and retry. If the faucet or ledger is
+                    busy, wait a moment. No payment is sent by this check.
+                  </p>
                   <button
-                    className="icon-button"
-                    aria-label="Copy wallet address"
-                    onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(wallet.address);
-                        setCopied(true);
-                        setTimeout(() => setCopied(false), 2000);
-                      } catch {
-                        setWalletError(
-                          "Clipboard unavailable. Wallet: " + wallet.address,
-                        );
-                      }
-                    }}
+                    className="button button-ghost"
+                    disabled={walletLoading}
+                    onClick={() => void loadWallet()}
                   >
-                    {copied ? <Check size={14} /> : <Copy size={14} />}
+                    Retry wallet connection
                   </button>
                 </div>
-              </>
-            ) : (
-              <p className="panel-subtitle" role="status">
-                {walletLoading ? "Connecting to XRPL Testnet…" : walletError}
+              )}
+              <p className="notice-inline">
+                Shared Testnet wallet · Test XRP only.
               </p>
-            )}
-            {wallet && walletError && (
-              <p className="notice-inline">{walletError}</p>
-            )}
-            <p className="notice-inline">
-              Shared Testnet wallet · Test XRP only.
-            </p>
-          </section>
+            </section>
+          )}
           <section className="panel">
             <div className="panel-heading">
               <span>

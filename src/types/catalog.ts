@@ -1,9 +1,5 @@
 export type CatalogCategory =
-  | "storage"
-  | "api"
-  | "compute"
-  | "analytics"
-  | "furniture";
+  "storage" | "api" | "compute" | "analytics" | "furniture";
 
 export interface CatalogOffer {
   id: string;
@@ -20,6 +16,7 @@ export interface CatalogOffer {
 }
 
 export interface CatalogSearchResult {
+  minBudgetXrp?: number | null;
   category: CatalogCategory | "mixed" | "unknown";
   budgetXrp: number | null;
   offers: CatalogOffer[];

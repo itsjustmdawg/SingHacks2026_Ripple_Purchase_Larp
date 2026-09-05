@@ -17,6 +17,9 @@ export interface WalletView {
   isFunded: boolean;
 }
 export interface Receipt extends TransactionResult {
+  escrowAction?: "create" | "finish" | "cancel";
+  escrowSequence?: number | null;
+  walletAddress?: string;
   objective: string;
   provider: string;
   amount: number;
@@ -26,17 +29,38 @@ export class RequestError extends Error {
   constructor(
     message: string,
     public readonly status: number,
+    public readonly nextStep: string = "Retry shortly. If this persists, check your connection and sign in again.",
+    public readonly transaction?: EscrowTransactionResult,
   ) {
     super(message);
   }
 }
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, { ...init, cache: "no-store" });
-  const body = await response.json();
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      ...init,
+      cache: "no-store",
+      signal: init?.signal ?? AbortSignal.timeout(60000),
+    });
+  } catch {
+    throw new RequestError("The server could not be reached or timed out.", 0);
+  }
+  let body;
+  try {
+    body = await response.json();
+  } catch {
+    throw new RequestError(
+      "The server returned an unreadable response.",
+      response.status,
+      "Retry the research request. For payments, check ledger status before doing anything else.",
+    );
+  }
   if (!response.ok)
     throw new RequestError(
       body.error || "The request could not be completed.",
       response.status,
+      body.nextStep,
     );
   return body as T;
 }
@@ -75,10 +99,23 @@ export const purchaseService = {
       );
     return body;
   },
-  verify: (hash: string) =>
-    api<TransactionResult>(
+  verify: async (hash: string): Promise<TransactionResult> => {
+    const response = await fetch(
       "/api/transaction/verify?hash=" + encodeURIComponent(hash),
-    ),
+      { cache: "no-store", signal: AbortSignal.timeout(20000) },
+    );
+    const body = await response.json();
+    if (
+      (response.ok || response.status === 404) &&
+      typeof body.transactionId === "string" &&
+      ["confirmed", "failed", "pending", "submitted"].includes(body.status)
+    )
+      return body;
+    throw new RequestError(
+      body.error || "Verification unavailable.",
+      response.status,
+    );
+  },
   lockEscrow: async (
     proposal: PaymentProposal,
     cancelAfterSeconds = 30,
@@ -98,6 +135,8 @@ export const purchaseService = {
       throw new RequestError(
         body.error || "Failed to lock escrow on XRPL.",
         response.status,
+        "Check the transaction status before retrying this ledger action.",
+        typeof body.transactionId === "string" ? body : undefined,
       );
     }
     return body;
@@ -122,6 +161,8 @@ export const purchaseService = {
       throw new RequestError(
         body.error || "Failed to release escrow on XRPL.",
         response.status,
+        "Check the transaction status before retrying this ledger action.",
+        typeof body.transactionId === "string" ? body : undefined,
       );
     }
     return body;
@@ -146,6 +187,8 @@ export const purchaseService = {
       throw new RequestError(
         body.error || "Failed to cancel escrow on XRPL.",
         response.status,
+        "Check the transaction status before retrying this ledger action.",
+        typeof body.transactionId === "string" ? body : undefined,
       );
     }
     return body;
@@ -169,6 +212,35 @@ export const purchaseService = {
     return body as VendorDeliveryReceipt;
   },
 };
+const PENDING_KEY = "purchase-larp-pending-payment-v1";
+export function savePendingPayment(receipt: Receipt) {
+  try {
+    localStorage.setItem(PENDING_KEY, JSON.stringify(receipt));
+    return true;
+  } catch {
+    return false;
+  }
+}
+export function clearPendingPayment() {
+  try {
+    localStorage.removeItem(PENDING_KEY);
+  } catch {
+    /* UI still prevents automatic retries. */
+  }
+}
+export function getPendingPayment(): Receipt | null {
+  try {
+    const value = JSON.parse(localStorage.getItem(PENDING_KEY) || "null");
+    return value &&
+      typeof value.transactionId === "string" &&
+      typeof value.amount === "number" &&
+      typeof value.proposalId === "string"
+      ? value
+      : null;
+  } catch {
+    return null;
+  }
+}
 const RECEIPTS_KEY = "purchase-larp-receipts-v1";
 export function getReceipts(): Receipt[] {
   try {
