@@ -191,15 +191,22 @@ function createXrplTrace(
   };
 }
 
-function StageTracker({ status }: { status: WorkflowStatus }) {
-  const activeIndex = {
-    idle: 1,
-    planning: 2,
-    review: 5,
-    submitting: 5,
-    confirmed: 6,
-    failed: 5,
-  }[status];
+function StageTracker({
+  status,
+  trace,
+}: {
+  status: WorkflowStatus;
+  trace: AgentTraceEvent[];
+}) {
+  const activeIndex = (() => {
+    if (status === "confirmed") return 6;
+    if (status === "review" || status === "submitting") return 5;
+    if (status === "idle") return 1;
+    if (trace.some((event) => event.agent === "xrpl_agent")) return 5;
+    if (trace.some((event) => event.agent === "policy_engine")) return 4;
+    if (trace.some((event) => event.agent === "deal_analyst")) return 3;
+    return 2;
+  })();
   const stages = ["Objective", "Scout", "Analyst", "Policy", "XRPL"];
 
   return (
@@ -327,7 +334,7 @@ function CollaborationFeed({ trace }: { trace: AgentTraceEvent[] }) {
                   {event.status}
                 </span>
               </div>
-              <p className="mt-1.5 text-xs leading-5 text-slate-400">
+              <p className="mt-1.5 break-words text-xs leading-5 text-slate-400">
                 {event.message}
               </p>
             </div>
@@ -456,11 +463,14 @@ export function PaymentDashboard() {
       setTrace(nextPipeline.trace);
       setProposal(nextPipeline.proposal);
       setPolicy(nextPipeline.policyDecision);
-      setStatus("review");
       if (!nextPipeline.proposal) {
+        setStatus("failed");
         setError("No catalog offer matched the objective and user budget.");
       } else if (!nextPipeline.policyDecision?.approved) {
+        setStatus("failed");
         setError("Policy denied this proposal. Review the failed rules below.");
+      } else {
+        setStatus("review");
       }
     } catch (caught) {
       setStatus("failed");
@@ -781,7 +791,7 @@ export function PaymentDashboard() {
         </section>
 
         <section className="mt-5 rounded-2xl border border-white/8 bg-[#0b1628]/60 px-4 py-5 sm:px-8">
-          <StageTracker status={status} />
+          <StageTracker status={status} trace={trace} />
         </section>
 
         <section className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.65fr)]">

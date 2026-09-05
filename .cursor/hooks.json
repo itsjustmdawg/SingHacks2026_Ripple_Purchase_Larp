@@ -3,7 +3,7 @@
   "hooks": {
     "stop": [
       {
-        "command": "node /Users/mahesha/Documents/singhacks/SingHacks2026_Ripple_Purchase_Larp/hook/agents/cursor/stop-hook.mjs",
+        "command": "node hook/agents/cursor/stop-hook.mjs",
         "loop_limit": 2
       }
     ]

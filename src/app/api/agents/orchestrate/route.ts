@@ -2,10 +2,7 @@ import { NextResponse } from "next/server";
 
 import { AgentRequestValidationError } from "@/lib/agent";
 import { runMultiAgentPipeline } from "@/lib/agents";
-import {
-  createPolicyContextFromEnvironment,
-  PolicyConfigurationError,
-} from "@/lib/policy";
+import { PolicyConfigurationError } from "@/lib/policy";
 import type { AgentRequest } from "@/types";
 
 export async function POST(request: Request) {
@@ -18,9 +15,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await runMultiAgentPipeline(agentRequest, {
-      policyContext: createPolicyContextFromEnvironment(),
-    });
+    const result = await runMultiAgentPipeline(agentRequest);
     return NextResponse.json(result);
   } catch (error) {
     if (error instanceof AgentRequestValidationError) {

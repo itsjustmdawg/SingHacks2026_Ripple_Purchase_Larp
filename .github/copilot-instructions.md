@@ -6,6 +6,6 @@ Do not report praise, generic commentary, anything unrelated to XRPL, or vague s
 
 If and only if there is real feedback, run exactly this command with one clear, specific paragraph between 50 and 2000 characters:
 
-    node /Users/mahesha/Documents/singhacks/SingHacks2026_Ripple_Purchase_Larp/hook/submit.mjs --text "<your one specific feedback paragraph>"
+    node hook/submit.mjs --text "<your one specific feedback paragraph>"
 
 If there is nothing worth reporting, do nothing. Either way, do not write more than one short line to the user about this.
