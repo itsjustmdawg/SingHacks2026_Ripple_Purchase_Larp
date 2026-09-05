@@ -1,147 +1,221 @@
-You are an elite pitch-deck designer and hackathon presentation coach. Generate a six-slide pitch deck and complete speaker script for a strict three-minute presentation at SingHacks 2026, Ripple Track: "AI-Native Business on XRPL".
+You are an elite hackathon pitch strategist, cinematic art director, and presentation producer. Create the FINAL investor-quality pitch deck for SingHacks 2026, Ripple Track: “AI-Native Business on XRPL”.
 
-After the slide content and speaker script, provide the COMPLETE runnable Python script using python-pptx that creates pitch_deck.pptx. Do not provide pseudocode or a partial script.
-
-BRAND AND DESIGN — MATCH OUR ACTUAL WEBSITE
-Website: https://purchase-larp.vercel.app
+PROJECT
 Brand: Purchase LARP
-Subtitle: Agentic Procurement & the XRPL Digital Safe
-Use Purchase LARP consistently; do not invent a different company name.
+Product descriptor: Agentic Procurement & the XRPL Digital Safe
+Website and visual reference: https://purchase-larp.vercel.app
+Audience: SingHacks judges, Ripple/XRPL technical reviewers, builders, and potential enterprise users.
+Presentation length: exactly 3 minutes of spoken delivery.
+Goal: make judges immediately understand the commercial problem, the multi-agent separation of duties, the working XRPL Testnet prototype, and why the Digital Safe is a credible foundation for accountable agentic commerce.
 
-Our website is premium orange-and-charcoal, NOT navy-and-cyan:
-- Background: #0A0B0D
-- Surface: #141618
-- Raised surface: #1B1D1F
-- Primary orange: #FF5A1F
-- Secondary amber: #FFB15A
-- Primary text: #F6F6F3
-- Secondary text: #A6A7AA
-- Muted labels: #85878C
+NON-NEGOTIABLE OUTPUT FORMAT — IMAGE-FIRST, NOT TEMPLATE-FIRST
+Create the actual deck, not merely an outline or a Python script.
+
+1. Produce every final slide as its own polished, high-resolution 16:9 landscape image at 1920×1080 or higher.
+2. Treat each slide like a professionally art-directed campaign frame: full-canvas composition, cinematic lighting, editorial typography, intentional depth, and strong visual hierarchy.
+3. Do NOT construct the visible design from generic PowerPoint cards, default SmartArt, stock icons, clip art, repeated rounded rectangles, dashboard tiles, or a “consulting template” grid.
+4. Do NOT use python-pptx shapes to create the artwork. Use your image-generation capability to create the visual canvas for every slide.
+5. After generating the images, assemble them in order into a 16:9 PPTX as full-bleed slide images with no margins. Also provide the individual numbered PNG files.
+6. Put the complete spoken script, timing, factual caveats, and sources in speaker notes—not visibly on the slide.
+7. The final deliverables must be:
+   - purchase_larp_pitch_deck.pptx
+   - purchase_larp_slide_01.png through the final numbered slide
+   - a concise slide-by-slide speaker script
+8. If text rendered inside an image is misspelled, distorted, clipped, or unreadable, regenerate that slide. Never deliver malformed AI-image typography.
+9. If necessary for perfectly legible words, composite crisp text over the generated artwork before flattening the final slide to PNG. The audience must still experience each slide as one seamless visual composition, not as visible PowerPoint elements.
+10. Render and inspect the completed deck as a contact sheet and at full size. Fix all text, cropping, alignment, contrast, consistency, and overflow issues before delivery.
+
+COMMUNICATION JOB
+By the end, judges should believe Purchase LARP demonstrates a practical route to accountable AI procurement because AI proposes, deterministic policy authorizes, and XRPL provides auditable settlement.
+
+CORE NARRATIVE
+“AI proposes. Policy authorizes. XRPL settles.”
+
+This is not “multi-agent” merely because one model is called several times. The differentiation is separation of responsibilities:
+- Market Scout discovers appropriate options.
+- Deal Analyst compares them.
+- Treasury converts the choice into an exact payment proposal.
+- An independent deterministic Policy Engine decides whether it is permitted.
+- XRPL submits and verifies the settlement action.
+
+VISUAL LANGUAGE — MATCH THE ACTUAL WEBSITE
+The website is premium orange-and-charcoal, not navy-and-cyan.
+
+Exact palette:
+- Near-black canvas: #0A0B0D
+- Dark surface: #141618
+- Raised charcoal: #1B1D1F
+- Primary molten orange: #FF5A1F
+- Warm amber: #FFB15A
+- Primary ivory text: #F6F6F3
+- Secondary grey: #A6A7AA
+- Muted grey: #85878C
 - Restrained success green: #8CD3B0
-- Subtle white separators around 10% opacity.
 
-Visual direction: confident, cinematic, editorial fintech. Use generous margins, bold oversized typography, restrained orange glow/vertical-light treatment, and dark negative space. Echo the website's orbital agent-core motif subtly. No race cars, F1 branding, cartoon robots, generic crypto coins, or unrelated stock imagery. Avoid overloading every slide with dashboard cards.
+Art direction:
+- Cinematic, sophisticated, premium fintech, slightly futuristic, and credible.
+- Deep black negative space with controlled orange illumination.
+- Use glowing orbital paths, transaction trails, a luminous agent core, ledger-grid textures, glass-like depth, and subtle XRPL-inspired geometry.
+- Favor one striking focal visual per slide.
+- Use visual metaphors such as a protected vault, controlled energy transfer, separated decision layers, and a ledger pulse.
+- Maintain the same world, lighting, material language, and orange energy system across the entire deck.
+- Use asymmetric editorial layouts, large scale contrast, generous margins, and restrained copy.
+- Vary composition across slides: hero frame, cinematic split scene, horizontal journey, layered architecture, close-up mechanism, proof montage, and visionary closing frame.
+- Typography should feel like Inter, Neue Haas Grotesk, Helvetica Now, or a comparable modern grotesk.
+- Opening title at least 58 pt equivalent; slide headlines at least 38 pt equivalent; supporting text at least 20 pt equivalent.
+- Maximum visible copy should normally be 18–28 words per slide.
 
-Use 16:9 widescreen. Prefer Inter with Arial fallback. Titles 38–48 pt, opening title 50–60 pt, body 20–24 pt, essential footnotes at least 14 pt. One dominant message per slide, generally no more than 35 visible words, excluding diagram labels and source footnotes. Use editable shapes/text for simple process diagrams and avoid crossed connectors. Vary layouts while retaining a consistent grid and footer.
+Strict visual prohibitions:
+- No Formula 1 cars or racing imagery.
+- No cartoon robots, robot heads, handshakes, piggy banks, generic crypto coins, stock traders, city skylines, or random corporate people.
+- No blue/cyan “generic blockchain” palette.
+- No fake application screenshots.
+- No fake charts, market statistics, revenue, customers, partnerships, awards, or traction.
+- No dense card grids.
+- No repeated identical layouts.
+- No excessive neon, cyberpunk clutter, lens-flare overload, or tiny unreadable labels.
+- No Ripple logo unless its use is clearly appropriate and accurate; track identification may be set as text.
 
-COMMUNICATION GOAL
-Help judges understand that AI-assisted commerce needs separate discovery, deterministic financial authorization, and verifiable settlement. Demonstrate a working hackathon prototype without misrepresenting mock delivery or future security features as production guarantees.
+FACTS THE DECK MAY CLAIM
+- Purchase LARP is a full-stack TypeScript application built with Next.js and React.
+- The product separates the user’s request into two fields: what they need and their price requirement.
+- Example price expressions include “max 100 SGD”, “between 20 and 50 EUR”, and “min 0.001 BTC”.
+- Supported price constraints are interpreted into minimum/maximum bounds and converted into XRP using dated daily reference rates.
+- Ambiguous currencies are rejected with clarification rather than guessed.
+- Market Scout performs Gemini-assisted discovery when provider access is available.
+- Deal Analyst performs Gemini-assisted comparison while deterministic code validates eligible offers and price bounds.
+- Treasury deterministically converts a selected quote into a payment proposal.
+- The server-side Policy Engine applies spending limits, address checks, and approval rules independently of the language model.
+- The payment boundary rechecks authorization before signing.
+- The app contains XRPL Testnet payment and native escrow transaction routes, structured results, validated-ledger checks, and explorer links.
+- Audit memos use “agent/payment-audit” and SourceTag 20260530.
+- The product includes a login, marketplace, agent profiles, launch flow, procurement workspace, recovery states, and receipt/activity views.
+- Google Search grounding is implemented, but the current API project rejected verified live use because quota/account access was unavailable.
+- When grounding is rejected for a supported category, the app now safely switches to a clearly labelled XRPL Testnet sample catalogue instead of presenting invented web results.
+- The latest verified local suite contains 287 passing automated tests, plus passing typecheck, lint, production build, and the exact “gaming chair, not more than 200 SGD” hosted fallback check.
+- “287 tests passing” does not mean measured 100% coverage.
+- Production demo: https://purchase-larp.vercel.app
 
-CORE PROBLEM
-1. AI can recommend products, but recommendations are not spending authority.
-2. Sending money to the wrong recipient or an unreliable seller creates financial and non-delivery risk.
-3. Businesses need spending rules, explicit approvals and auditable settlement before giving agents operational purchasing power.
+HONEST TECHNICAL BOUNDARIES
+Never weaken or contradict these:
+- The Testnet catalogue and its vendor quality metadata are simulated.
+- Sample catalogue offers are not current retail listings.
+- Arbitrary external sellers are not connected to verified merchant XRPL checkout addresses.
+- A Testnet transfer does not purchase a real-world retail product.
+- Daily reference rates are indicative conversion data, not executable foreign-exchange quotes.
+- The delivery/API-credential endpoint is simulated; there is no independent production delivery oracle.
+- The current Digital Safe is a time-based XRPL Testnet escrow prototype using EscrowCreate with FinishAfter and CancelAfter.
+- The ledger does not inspect or verify the application delivery receipt.
+- EscrowFinish and EscrowCancel are separate transactions.
+- Timeout eligibility does not automatically refund funds; a cancellation actor must submit EscrowCancel after the deadline.
+- Cancellation returns escrow principal, while transaction fees are not refunded.
+- Do not claim zero counterparty risk, guaranteed delivery, automatic refunds, mathematical elimination of disputes, production security, audited mainnet readiness, or exactly-once distributed settlement.
+- RLUSD, x402, verified merchant checkout, delivery attestations, and stronger recovery are roadmap items unless new proof is supplied.
+- Do not invent transaction hashes, ledger indexes, screenshots, measurements, or results.
 
-CENTRAL MESSAGE
-"AI proposes. Policy authorizes. XRPL settles."
-Our differentiator is separation of responsibilities, not simply calling the same model several times.
+SCREENSHOT RULE
+First inspect the live website at https://purchase-larp.vercel.app if browsing is available.
+- If genuine website screenshots are available, use them only on the product/proof slide. Place them inside a premium cinematic device or browser frame while preserving the real UI.
+- If login prevents access or browsing is unavailable, ask for screenshots or use a tasteful labelled placeholder reading “LIVE PRODUCT DEMO” with the URL.
+- Never fabricate a screenshot that looks like proof of functionality.
 
-CURRENT IMPLEMENTATION — USE THESE FACTS
-- Full-stack TypeScript, Next.js and React. Do not describe a Python/LangChain backend. Python is only used to generate this deck.
-- Two user-input fields: (1) item or need; (2) price requirement. Examples: "max 100 SGD", "between 20 and 50 EUR", "min 0.001 BTC".
-- Price interpretation preserves minimum/maximum constraints, converts supported currencies into XRP using dated daily reference rates, and asks for clarification when ambiguous. These are indicative conversions, not executable FX quotes or universal token support.
-- Market Scout: Gemini-assisted discovery. The original Testnet catalog is explicitly simulated.
-- Deal Analyst: Gemini-assisted comparison, with deterministic validation of allowed offers and price bounds. Demo catalog metrics such as uptime, latency and reliability are sample metadata, not independently measured vendor performance.
-- Treasury: deterministic quote-to-payment-proposal conversion.
-- Policy: independent server-side checks for spending limits, valid XRPL addresses and approval rules; the payment boundary rechecks authorization.
-- XRPL: Testnet payment and native escrow transaction routes, with structured results, ledger verification and explorer links.
-- On-chain audit memos use agent/payment-audit; SourceTag is 20260530.
-- Professional website includes login, marketplace, agent profiles, launch flow, purchase workspace and activity/receipts.
-- Research retries, error-specific next steps, read-only transaction-status retries and browser-persisted recovery are implemented. Do not call this distributed exactly-once settlement.
-- Latest combined verification: 286 automated tests passed, plus type checking, lint and production build. This is NOT a measured 100% coverage claim. Update the count only if a later verified test run is supplied.
+DECK LENGTH AND PACING
+Use exactly 9 slides. This is the right depth for this story while remaining deliverable in 180 seconds.
+The time allocations below total exactly 3:00. Aim for roughly 340–380 spoken words overall. Write natural speech with room for pauses; timing still requires rehearsal.
 
-HONEST LIMITATIONS — DO NOT REMOVE OR CONTRADICT
-- Web discovery via Gemini Google Search grounding is implemented, but the configured account returned 429 RESOURCE_EXHAUSTED in verification. Do not claim automated live-web research is currently verified operational. The UI explains the account/quota requirement and offers an external Google Shopping link. Do not describe that external link as agent browsing.
-- Arbitrary web listings are not connected to merchant XRPL checkout addresses. Never imply a Testnet transfer purchases a real retail product.
-- The delivery/API-credential service is simulated. No independent production delivery oracle exists.
-- Current Digital Safe uses time-based EscrowCreate with FinishAfter and CancelAfter. It is NOT a delivery-conditioned cryptographic escrow.
-- The ledger does not inspect a delivery receipt. The prototype demonstrates the application workflow, not trustless proof of product delivery.
-- EscrowFinish and EscrowCancel are separate submitted transactions. Reaching the timeout does not automatically return funds. A cancellation actor must submit EscrowCancel after eligibility.
-- Cancellation returns escrow principal; transaction fees are not refunded.
-- Do not claim "zero counterparty risk", "100% refund guarantee", "mathematically eliminates disputes", or "the seller cannot receive funds until delivery is verified".
-- The live website is a shared-account Testnet hackathon prototype, not audited mainnet financial infrastructure.
-- Do not invent customer traction, revenue, latency measurements, team credentials, test coverage, transaction hashes, ledger numbers, screenshots or partnerships.
+SLIDE 1 — 0:00–0:15 — HOOK
+Takeaway headline: “When AI starts buying, who holds the keys?”
+Visible support: “Purchase LARP · Agentic Procurement on XRPL”
+Visual: a brilliant orange intelligence core approaching a protected black vault boundary; enormous negative space and minimal type.
+Speaker purpose: introduce the paradox—AI can choose, but businesses cannot safely hand it unrestricted money.
 
-Position the Digital Safe as a settlement-control prototype and an explicit next step toward delivery-conditioned procurement. Explain limitations briefly and confidently, without making the deck a bug report.
+SLIDE 2 — 0:15–0:35 — THE TRUST GAP
+Takeaway headline: “A recommendation is not spending authority.”
+Visible support: “Wrong recipient. Broken budget. No delivery.”
+Visual: one orange payment trail splitting toward three failure states, restrained and cinematic rather than diagram-heavy.
+Speaker purpose: explain why irreversible settlement plus probabilistic reasoning is a CFO nightmare.
 
-STRICT RUN OF SHOW — EXACTLY SIX SLIDES
-The six time allocations below total 180 seconds. Do not force every slide into 25–30 seconds; that would conflict with the longer architecture and escrow sections. Aim for approximately 350–380 spoken words overall, leaving room for pauses. Actual timing requires rehearsal; never promise that text alone guarantees exact delivery speed.
+SLIDE 3 — 0:35–0:55 — THE PRODUCT PROMISE
+Takeaway headline: “Procurement autonomy—with financial boundaries.”
+Visible support: “Discover → compare → authorize → settle”
+Visual: a protected procurement journey flowing through an illuminated corridor toward XRPL settlement.
+Speaker purpose: introduce Purchase LARP and the central separation-of-responsibilities idea.
 
-Slide 1 — 0:00–0:25 (25s)
-Title and hook: "When AI starts buying, who holds the keys?"
-Minimal Purchase LARP branding, track identification and a striking orange/charcoal composition.
-Introduce the tension between intelligent recommendations and accountable spending.
+SLIDE 4 — 0:55–1:20 — USER EXPERIENCE
+Takeaway headline: “Describe the need. Set the money boundary.”
+Visible support: “Gaming chair in Singapore” / “Not more than 200 SGD”
+Small supporting line: “Converted to XRP · ambiguity rejected · no payment during research”
+Visual: use a genuine product screenshot if available; otherwise create an abstract two-input interaction visualization, clearly illustrative and not presented as a screenshot.
+Speaker purpose: make the two-field experience tangible and explain currency-aware bounds and safe fallback behaviour.
 
-Slide 2 — 0:25–0:55 (30s)
-The trust gap: spending authority, counterparty risk and non-delivery.
-Explain why an AI recommendation cannot serve as a payment approval.
-Use a simple contrast, not unsupported market statistics.
+SLIDE 5 — 1:20–1:45 — MULTI-AGENT ARCHITECTURE
+Takeaway headline: “Five roles. One controlled handoff.”
+Visible labels only: “Scout → Analyst → Treasury → Policy → XRPL”
+Secondary line: “AI reasons. Code constrains. The ledger proves.”
+Visual: five distinct illuminated stations connected by a single orange signal path; differentiate Gemini stages from deterministic and ledger stages through material/lighting, not a card grid.
+Speaker purpose: explain which roles use Gemini, which are deterministic, and why payment authority is isolated from the model.
 
-Slide 3 — 0:55–1:30 (35s)
-Architecture: Scout → Analyst → Treasury → Policy → XRPL.
-Distinguish Gemini reasoning from deterministic checks and signing.
-Include the two-field item/price experience and original-currency-to-XRP interpretation.
-Show human review as a separate checkpoint, not a sixth autonomous model.
-Keep the agent pipeline diagram readable from the back of the room.
+SLIDE 6 — 1:45–2:05 — POLICY BOUNDARY
+Takeaway headline: “The model never gets the wallet.”
+Visible support: “Spend limits · address validation · approval rules”
+Visual: close-up of a proposal crossing a hardened policy gate before reaching a sealed signing chamber.
+Speaker purpose: show that policy is independently enforced server-side and rechecked at the transaction boundary.
 
-Slide 4 — 1:30–2:05 (35s)
-Digital Safe: "Separate committing funds from releasing them."
-Show:
-EscrowCreate → funds locked → application delivery check (simulated)
-→ eligible EscrowFinish, OR after deadline a submitted EscrowCancel.
-Clearly label the implemented mechanism "time-based Testnet escrow prototype".
-Say that verified fulfillment conditions and a trusted delivery mechanism are the next engineering step. Never label cancellation "automatic refund".
+SLIDE 7 — 2:05–2:30 — XRPL DIGITAL SAFE
+Takeaway headline: “Commit funds now. Release—or cancel—by rule.”
+Visible labels: “EscrowCreate → time lock → EscrowFinish / EscrowCancel”
+Required small label: “Time-based XRPL Testnet prototype”
+Visual: a luminous asset held inside a transparent black/orange vault; one controlled path releases it, another cancellation path becomes available after a visible time threshold.
+Speaker purpose: explain the current time-based escrow honestly. State that delivery-conditioned fulfilment and trusted attestations are the next engineering step. Never say “automatic refund”.
 
-Slide 5 — 2:05–2:35 (30s)
-What we built and what judges can inspect.
-Show a real supplied screenshot of the two-field workspace or escrow panel; if none is supplied, use a clearly labeled screenshot placeholder rather than fabricating UI evidence.
-Highlight the deployed website, source-linked/explicitly labeled research modes, deterministic policy checks, audit memos and Testnet transaction receipts.
-Use "286 automated tests passing", not "100% test coverage".
-Insert only transaction proof supplied and verified by the team. Otherwise leave the proof out.
-Keep any demo inside this 30-second allocation; do not add a separate unbudgeted demo.
+SLIDE 8 — 2:30–2:48 — WORKING PROOF
+Takeaway headline: “Built, tested, and inspectable.”
+Visible evidence:
+“XRPL Testnet”
+“Validated-ledger checks”
+“Audit memos + SourceTag”
+“287 automated tests passing”
+“purchase-larp.vercel.app”
+Visual: a premium proof montage with a real supplied UI crop and real supplied explorer proof only. If proof assets are unavailable, use typographic evidence and the live URL—do not invent transaction artifacts.
+Speaker purpose: state precisely what is implemented and invite judges into the demo.
 
-Slide 6 — 2:35–3:00 (25s)
-Vision: accountable agentic commerce.
-Label RLUSD settlement, x402 machine-to-machine payments, merchant checkout integration, trustworthy delivery attestations and durable transaction recovery as ROADMAP.
-Select two or three priorities, not a wall of speculative features.
-Close with "AI proposes. Policy authorizes. XRPL settles."
-Include the website and a clear invitation to inspect the demo.
+SLIDE 9 — 2:48–3:00 — CLOSE AND VISION
+Takeaway headline: “AI proposes. Policy authorizes. XRPL settles.”
+Visible support: “Next: RLUSD · x402 · verified merchant delivery”
+CTA: “Inspect the live demo”
+Visual: the orange signal leaves the protected procurement system and expands into a network of machine-to-machine commerce; elegant, optimistic, and uncluttered.
+Speaker purpose: close the opening tension, name only the most important roadmap moves, and leave the judges with one memorable line.
 
-FOR EACH SLIDE, OUTPUT
-1. Slide number, time window and duration.
-2. A takeaway-style title.
-3. Exact audience-facing text.
-4. Visual layout description consistent with our website.
-5. Natural spoken script, with approximate word count.
-6. Speaker notes identifying any demo assumption or limitation relevant to that slide.
-Keep timing and production instructions out of visible slide content.
+SPEAKER-SCRIPT REQUIREMENTS
+- Write the exact script for each slide.
+- Keep the total delivery within the stated 180-second run of show.
+- Use conversational spoken English, not brochure copy.
+- Open with the question on Slide 1 and close with the central message on Slide 9.
+- Use precise verbs: proposes, validates, authorizes, submits, verifies.
+- Do not narrate every decorative visual element.
+- Put relevant limitations naturally into Slides 4, 7, and 8 rather than adding a defensive disclaimer slide.
+- Include a one-sentence transition between consecutive slides.
+- Include approximate word count and time in speaker notes only.
 
-PYTHON GENERATION REQUIREMENTS
-- Provide installation/run commands and one complete Python 3 script using python-pptx.
-- Running it must create pitch_deck.pptx with exactly six 16:9 slides.
-- Use reusable helpers for text, spacing, backgrounds, restrained callouts and simple connectors.
-- Preserve editable text; do not flatten the deck into six images.
-- Include the full speaker scripts and time allocations in slide notes.
-- Handle optional screenshot files safely. Missing assets must not crash the script or produce fabricated evidence.
-- Use stable system fonts if Inter is unavailable.
-- Do not require network access, API keys or paid services at generation time.
-- No text clipping, off-slide objects, tiny diagram labels or unreadable low-contrast text.
-- Add a basic geometry validation pass and state that visual inspection and rehearsal are still required.
-- Save the output path clearly at completion.
-- Include sources in speaker notes, not an extra seventh slide.
-- If you can execute and render the deck, inspect every slide and fix overflow before delivery. Otherwise do not claim rendering or visual QA occurred.
-
-REFERENCE SOURCES FOR TECHNICAL ACCURACY
-- Website: https://purchase-larp.vercel.app
+SOURCES TO PLACE IN SPEAKER NOTES
+- Product: https://purchase-larp.vercel.app
 - XRPL escrow concepts: https://xrpl.org/docs/concepts/payment-types/escrow
-- XRPL cancellation: https://xrpl.org/docs/references/protocol/transactions/types/escrowcancel
-- Reliable transaction submission: https://xrpl.org/docs/concepts/transactions/reliable-transaction-submission
+- XRPL EscrowCancel: https://xrpl.org/docs/references/protocol/transactions/types/escrowcancel
+- XRPL reliable transaction submission: https://xrpl.org/docs/concepts/transactions/reliable-transaction-submission
 - Gemini Search grounding/pricing: https://ai.google.dev/gemini-api/docs/pricing
-- Currency reference-rate provider: https://github.com/fawazahmed0/exchange-api
+- Reference-rate data: https://github.com/fawazahmed0/exchange-api
 
-OUTPUT ORDER
-A. Complete six-slide content and timed speaker script.
-B. Complete ready-to-run python-pptx script.
-C. A concise rehearsal and technical-truth checklist.
+WORK ORDER
+1. Draft the 9-slide narrative and complete 180-second script.
+2. Define one shared visual bible: palette, typography, grid, lighting, materials, orbital motif, and recurring footer treatment.
+3. Generate Slide 1 first as the master art-direction frame.
+4. Check Slide 1 against the website style. Only then generate Slides 2–9 using the same design world.
+5. Generate slides individually, not as one nine-panel image.
+6. Validate every slide for exact wording, text clarity, factual accuracy, and visual consistency.
+7. Assemble the approved images into the PPTX as full-bleed backgrounds.
+8. Add scripts, sources, timing, and caveats to speaker notes.
+9. Render the PPTX and inspect all slides individually plus a contact sheet.
+10. Deliver the PPTX, all individual PNGs, and the final script.
 
-Do not ask broad design questions; the brand, audience, scope, timing and factual boundaries above are the requirements.
+FINAL RESPONSE
+Briefly list the completed files and note that the deck is image-first and visually matched to Purchase LARP. Do not respond with only code, an outline, a design plan, or instructions telling me to build it myself. Do not stop after generating one sample slide. Complete all nine slides and the assembled deck.
