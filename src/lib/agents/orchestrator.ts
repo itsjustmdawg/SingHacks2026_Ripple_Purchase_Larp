@@ -19,6 +19,7 @@ import { runScoutAgent } from "./scout-agent";
 import { runTreasuryAgent } from "./treasury-agent";
 
 export interface MultiAgentPipelineOptions {
+  priceRange?: { minXrp: number | null; maxXrp: number | null };
   now?: Date;
   policyContext?: PolicyEvaluationContext;
   model?: ProcurementAgentModel | null;
@@ -46,6 +47,13 @@ export async function runMultiAgentPipeline(
       : options.model;
 
   const scout = await runScoutAgent(request, stageTimestamp(now, 0), model);
+  if (options.priceRange) {
+    scout.catalog = {
+      ...scout.catalog,
+      minBudgetXrp: options.priceRange.minXrp,
+      budgetXrp: options.priceRange.maxXrp,
+    };
+  }
   trace.push(scout.trace);
 
   const analyst = await runDealAnalystAgent(
@@ -57,8 +65,7 @@ export async function runMultiAgentPipeline(
   trace.push(analyst.trace);
 
   const selectedEvaluation = analyst.analysis.evaluations.find(
-    (evaluation) =>
-      evaluation.offerId === analyst.analysis.selectedOffer?.id,
+    (evaluation) => evaluation.offerId === analyst.analysis.selectedOffer?.id,
   );
 
   if (!analyst.analysis.selectedOffer || !selectedEvaluation) {

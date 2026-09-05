@@ -4,7 +4,8 @@ import { buildAuditMemo } from "./memo";
 import * as clientModule from "./client";
 
 describe("XRPL Transaction Verification", () => {
-  const MOCK_HASH = "A1B2C3D4E5F60123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123";
+  const MOCK_HASH =
+    "A1B2C3D4E5F60123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123";
 
   afterEach(() => {
     vi.restoreAllMocks();
@@ -24,6 +25,7 @@ describe("XRPL Transaction Verification", () => {
 
     const mockTxResponse = {
       result: {
+        validated: true,
         Account: "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh",
         Destination: "rPT1Sjq2YGrBMTttX4GZHjKu9DYfzbpAYe",
         date: 810000000, // Ripple epoch date
@@ -46,7 +48,9 @@ describe("XRPL Transaction Verification", () => {
     expect(result.ledgerIndex).toBe(94820192);
     expect(result.proposalId).toBe("prop-proof-1");
     expect(result.deliveredXrp).toBe(5);
-    expect(result.explorerUrl).toBe(`https://testnet.xrpl.org/transactions/${MOCK_HASH}`);
+    expect(result.explorerUrl).toBe(
+      `https://testnet.xrpl.org/transactions/${MOCK_HASH}`,
+    );
     expect(result.auditMemo?.reason).toBe("Verified autonomous transaction");
     expect(result.error).toBeNull();
   });
@@ -54,6 +58,7 @@ describe("XRPL Transaction Verification", () => {
   it("handles on-ledger failures (tec codes)", async () => {
     const mockTxResponse = {
       result: {
+        validated: true,
         date: 810000000,
         ledger_index: 94820192,
         meta: {
@@ -81,5 +86,23 @@ describe("XRPL Transaction Verification", () => {
     const result = await verifyTransaction(MOCK_HASH);
     expect(result.status).toBe("pending");
     expect(result.error).toMatch(/pending consensus validation/);
+  });
+  it("never treats a provisional success as final", async () => {
+    vi.spyOn(clientModule, "getXrplClient").mockResolvedValue({
+      request: vi
+        .fn()
+        .mockResolvedValue({
+          result: {
+            validated: false,
+            ledger_index: 123,
+            meta: { TransactionResult: "tesSUCCESS" },
+          },
+        }),
+    } as unknown as Awaited<ReturnType<typeof clientModule.getXrplClient>>);
+    const result = await verifyTransaction(MOCK_HASH);
+    expect(result.status).toBe("pending");
+    expect(result.ledgerIndex).toBeNull();
+    expect(result.confirmedAt).toBeNull();
+    expect(result.error).toContain("do not resend");
   });
 });

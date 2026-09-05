@@ -2791,3 +2791,134 @@ h2 > span {
   background: rgb(0 0 0 / 0.75);
   backdrop-filter: blur(8px);
 }
+/* Item + price research and recoverable failures. */
+.shopping-fields {
+  display: grid;
+  gap: 18px;
+}
+.shopping-fields .field {
+  margin: 0;
+}
+.shopping-fields textarea {
+  min-height: 105px;
+}
+.shopping-fields .notice-inline {
+  margin: 0 0 16px;
+}
+.search-mode {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  margin: 0 0 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.search-mode legend {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 0 8px;
+}
+.search-mode label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.search-mode input {
+  accent-color: var(--orange);
+}
+.budget-preview {
+  margin-top: 22px;
+  padding: 22px;
+  border: 1px solid #f67d3a66;
+  border-radius: 16px;
+  background: #ff6a1710;
+}
+.budget-preview strong {
+  display: block;
+  font-size: 25px;
+  line-height: 1.4;
+  margin: 10px 0;
+  overflow-wrap: anywhere;
+}
+.budget-preview p {
+  font-size: 14px;
+  margin: 0 0 8px;
+}
+.budget-preview small {
+  color: var(--muted);
+  line-height: 1.65;
+  display: block;
+}
+.budget-preview a {
+  text-decoration: underline;
+}
+.recovery-next {
+  margin: 12px 0 !important;
+  font-size: 14px !important;
+  line-height: 1.7;
+}
+.recovery-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+.recovery-actions .button {
+  font-size: 12px;
+  padding: 12px 15px;
+  white-space: normal;
+}
+.web-results {
+  margin-top: 24px;
+}
+.source-list {
+  padding-left: 20px;
+  margin-top: 18px;
+  display: grid;
+  gap: 12px;
+}
+.source-list a {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+.search-suggestions {
+  width: 100%;
+  height: 180px;
+  border: 0;
+  margin-top: 20px;
+  background: white;
+  border-radius: 12px;
+}
+.web-results .quote-top strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.web-results .quote-footer {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.web-results .quote-footer a {
+  flex-shrink: 0;
+}
+@media (max-width: 600px) {
+  .search-mode {
+    flex-direction: column;
+  }
+  .budget-preview strong {
+    font-size: 21px;
+  }
+  .web-results .quote-top {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .recovery-actions .button {
+    width: 100%;
+  }
+}

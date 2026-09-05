@@ -22,6 +22,7 @@ export interface CatalogOffer {
 }
 
 export interface CatalogSearchResult {
+  minBudgetXrp?: number | null;
   category: CatalogCategory | "mixed" | "unknown";
   budgetXrp: number | null;
   offers: CatalogOffer[];

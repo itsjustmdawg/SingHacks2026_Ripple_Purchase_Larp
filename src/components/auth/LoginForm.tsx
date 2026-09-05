@@ -1,7 +1,13 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowUpRight, Eye, EyeOff, LoaderCircle, LockKeyhole } from "lucide-react";
+import {
+  ArrowUpRight,
+  Eye,
+  EyeOff,
+  LoaderCircle,
+  LockKeyhole,
+} from "lucide-react";
 export function LoginForm({ next }: { next: string }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

@@ -37,7 +37,9 @@ describe("mock catalog", () => {
   });
 
   it("returns AI debugger offers for engineering team requests", () => {
-    const result = queryCatalog("Find an AI debugger for my company team under 5 XRP");
+    const result = queryCatalog(
+      "Find an AI debugger for my company team under 5 XRP",
+    );
 
     expect(result.category).toBe("debugging");
     expect(result.budgetXrp).toBe(5);
