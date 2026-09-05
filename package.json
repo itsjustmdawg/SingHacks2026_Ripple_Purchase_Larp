@@ -9,7 +9,9 @@
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "smoke:demo": "node scripts/smoke-demo.mjs",
+    "smoke:shopping": "node scripts/smoke-shopping.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.21.0",

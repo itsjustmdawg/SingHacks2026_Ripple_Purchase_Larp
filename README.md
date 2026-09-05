@@ -133,10 +133,9 @@ See [`docs/architecture.md`](docs/architecture.md) for the detailed sequence dia
 ├── docs/                                  # Architectural specs, hosting guides, and integration docs
 │   ├── architecture.md                    # System architecture and sequence workflows
 │   └── hosting.md                         # Production hosting & Vercel deployment instructions
-├── scripts/                               # Automation, verification, and live test scripts
+├── scripts/                               # Automation and verification smoke test scripts
 │   ├── smoke-demo.mjs                     # End-to-end API & auth smoke test
-│   ├── smoke-shopping.mjs                 # Shopping search & currency rate smoke test
-│   └── test-live-xrpl-suite.mjs           # Live XRPL testnet integration test suite
+│   └── smoke-shopping.mjs                 # Shopping search & currency rate smoke test
 └── vitest.config.mts                      # Vitest test runner configuration
 ```
 
@@ -240,14 +239,7 @@ Verifies Next.js compilation, tree-shaking, and static page generation:
 npm run build
 ```
 
-### 4. Live XRPL Testnet Health Check
-Connects directly to the live XRPL Testnet, funds a wallet via faucet, checks account reserves, executes a direct payment with an audit memo, queries validated ledger inclusion, creates an Escrow, waits for ledger consensus, and finishes the escrow:
-
-```bash
-npm run test:live
-```
-
-### 5. Read-Only Smoke Tests
+### 4. Read-Only Smoke Tests
 Verifies authentication boundaries, protected endpoints, wallet availability, and search flows:
 
 ```bash
