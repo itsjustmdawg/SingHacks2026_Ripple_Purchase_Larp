@@ -8,11 +8,45 @@ export async function POST(request: Request) {
     const body = await request.json();
     const plan = readPlan(body?.token);
     if (plan.mode === "web") {
-      const web=await searchWeb(plan);
-      return NextResponse.json(
-        { budget: web.budget, web },
-        { headers: { "Cache-Control": "no-store" } },
-      );
+      try {
+        const web = await searchWeb(plan);
+        return NextResponse.json(
+          { budget: web.budget, web },
+          { headers: { "Cache-Control": "no-store" } },
+        );
+      } catch (error) {
+        if (
+          !(error instanceof ShoppingError) ||
+          !["SEARCH_UNAVAILABLE", "SEARCH_CONFIGURATION"].includes(error.code)
+        ) {
+          throw error;
+        }
+
+        const demo = await runMultiAgentPipeline(
+          {
+            id: crypto.randomUUID(),
+            userMessage: plan.item,
+            timestamp: new Date().toISOString(),
+          },
+          {
+            priceRange: {
+              minXrp: plan.budget.minXrp,
+              maxXrp: plan.budget.maxXrp,
+            },
+          },
+        );
+        if (!demo.catalog.offers.length) throw error;
+
+        return NextResponse.json(
+          {
+            budget: plan.budget,
+            demo,
+            fallbackReason:
+              "Live Google research is unavailable, so the agents switched to the clearly labeled XRPL Testnet sample catalog. These are demo listings, not current web products.",
+          },
+          { headers: { "Cache-Control": "no-store" } },
+        );
+      }
     }
     const result = await runMultiAgentPipeline(
       {

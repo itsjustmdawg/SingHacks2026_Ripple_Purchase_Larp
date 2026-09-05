@@ -45,4 +45,5 @@ export interface ShoppingResult {
   budget: PriceBudget;
   demo?: MultiAgentPipelineResult;
   web?: WebSearchResult;
+  fallbackReason?: string;
 }

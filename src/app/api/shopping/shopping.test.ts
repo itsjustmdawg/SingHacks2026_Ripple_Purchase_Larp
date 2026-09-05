@@ -106,4 +106,28 @@ describe("two-field shopping API", () => {
     expect(r.status).toBe(503);
     expect(await r.json()).toMatchObject({ nextStep: "Check provider access" });
   });
+  it("falls back to the labeled Testnet catalog for a supported product", async () => {
+    const p = await (
+      await prepare(
+        request({ item: "Gaming chair in Singapore", pricing: "max 50 XRP", mode: "web" }),
+      )
+    ).json();
+    vi.mocked(searchWeb).mockRejectedValue(
+      new ShoppingError(
+        "Quota unavailable",
+        "Check provider access",
+        "SEARCH_UNAVAILABLE",
+        503,
+      ),
+    );
+
+    const r = await search(request({ token: p.token }));
+    expect(r.status).toBe(200);
+    expect(await r.json()).toMatchObject({
+      fallbackReason: expect.stringContaining("sample catalog"),
+      demo: {
+        catalog: { category: "furniture" },
+      },
+    });
+  });
 });

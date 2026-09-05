@@ -85,6 +85,7 @@ export function PurchaseWorkspace({
   const [mode, setMode] = useState<SearchMode>(initialMode);
   const [budget, setBudget] = useState<PriceBudget | null>(null);
   const [web, setWeb] = useState<WebSearchResult | null>(null);
+  const [researchNotice, setResearchNotice] = useState("");
   const [nextStep, setNextStep] = useState("");
   const [uncertain, setUncertain] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -220,6 +221,7 @@ export function PurchaseWorkspace({
     setSecondsRemaining(null);
     setResult(null);
     setWeb(null);
+    setResearchNotice("");
     setBudget(null);
     if (!uncertain) {
       setReceipt(null);
@@ -323,6 +325,7 @@ export function PurchaseWorkspace({
     setResult(null);
     if (!uncertain) setReceipt(null);
     setWeb(null);
+    setResearchNotice("");
     setBudget(null);
     setNextStep("");
     setConfirmed(false);
@@ -358,6 +361,10 @@ export function PurchaseWorkspace({
         throw new Error(
           "The search returned an incomplete result. Retry research.",
         );
+      if (data.fallbackReason) {
+        setMode("demo");
+        setResearchNotice(data.fallbackReason);
+      }
       setResult(r);
       if (!r.proposal) {
         setPhase("failed");
@@ -930,6 +937,15 @@ export function PurchaseWorkspace({
               </div>
             </form>
             {budget && <BudgetPreview budget={budget} />}
+            {researchNotice && (
+              <div className="live-stage" role="status">
+                <ShieldAlert size={22} />
+                <div>
+                  <strong>Safe fallback used</strong>
+                  <p>{researchNotice}</p>
+                </div>
+              </div>
+            )}
             {phase === "analyzing" && (
               <div className="live-stage" role="status">
                 <LoaderCircle className="spin" size={22} />
