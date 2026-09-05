@@ -3,7 +3,11 @@ import type {
   PaymentProposal,
   TransactionResult,
   PolicyDecision,
+  EscrowTransactionResult,
 } from "@/types";
+import type { VendorDeliveryReceipt } from "@/lib/catalog";
+
+export type { EscrowTransactionResult, VendorDeliveryReceipt };
 export interface WalletView {
   address: string;
   balanceXrp: number;
@@ -75,6 +79,95 @@ export const purchaseService = {
     api<TransactionResult>(
       "/api/transaction/verify?hash=" + encodeURIComponent(hash),
     ),
+  lockEscrow: async (
+    proposal: PaymentProposal,
+    cancelAfterSeconds = 30,
+  ): Promise<EscrowTransactionResult & { policyDecision?: PolicyDecision }> => {
+    const response = await fetch("/api/transaction/escrow", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "create",
+        proposal,
+        cancelAfterSeconds,
+        reason: proposal.reason,
+      }),
+    });
+    const body = await response.json();
+    if (!response.ok) {
+      throw new RequestError(
+        body.error || "Failed to lock escrow on XRPL.",
+        response.status,
+      );
+    }
+    return body;
+  },
+  releaseEscrow: async (
+    proposalId: string,
+    escrowSequence: number,
+    reason?: string,
+  ): Promise<EscrowTransactionResult> => {
+    const response = await fetch("/api/transaction/escrow", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "finish",
+        proposalId,
+        escrowSequence,
+        reason: reason || `Service verified for proposal ${proposalId}`,
+      }),
+    });
+    const body = await response.json();
+    if (!response.ok) {
+      throw new RequestError(
+        body.error || "Failed to release escrow on XRPL.",
+        response.status,
+      );
+    }
+    return body;
+  },
+  cancelEscrow: async (
+    proposalId: string,
+    escrowSequence: number,
+    reason?: string,
+  ): Promise<EscrowTransactionResult> => {
+    const response = await fetch("/api/transaction/escrow", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "cancel",
+        proposalId,
+        escrowSequence,
+        reason: reason || "Seller non-delivery or cancellation guarantee.",
+      }),
+    });
+    const body = await response.json();
+    if (!response.ok) {
+      throw new RequestError(
+        body.error || "Failed to cancel escrow on XRPL.",
+        response.status,
+      );
+    }
+    return body;
+  },
+  deliver: async (
+    offerId: string,
+    simulateGhosting = false,
+  ): Promise<VendorDeliveryReceipt> => {
+    const response = await fetch("/api/catalog/deliver", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ offerId, simulateGhosting }),
+    });
+    const body = await response.json();
+    if (!response.ok) {
+      throw new RequestError(
+        body.error || "Failed to fetch delivery receipt.",
+        response.status,
+      );
+    }
+    return body as VendorDeliveryReceipt;
+  },
 };
 const RECEIPTS_KEY = "purchase-larp-receipts-v1";
 export function getReceipts(): Receipt[] {
