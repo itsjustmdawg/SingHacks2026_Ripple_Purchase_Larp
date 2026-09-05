@@ -80,7 +80,7 @@ See [`docs/architecture.md`](docs/architecture.md) for the detailed sequence dia
 
 ### 3. XRPL Digital Safe & Direct Settlement (`src/lib/xrpl/`)
 - **Direct Payments**: Dispatches signed native XRP payments using XRPL `submitAndWait` for validated ledger finality.
-- **Audit Trails**: Appends standard `SourceTag` (`20260307`) and hex-encoded JSON `Memos` to transactions, linking on-chain transactions directly to proposal IDs and agent decisions.
+- **Audit Trails**: Appends standard `SourceTag` (`20260530`) and hex-encoded JSON `Memos` to transactions, linking on-chain transactions directly to proposal IDs and agent decisions.
 - **Digital Safe (Native Escrow)**:
   - Supports `EscrowCreate`, `EscrowFinish`, and `EscrowCancel`.
   - Enforces time locks with `FinishAfter` (earliest fulfillment) and `CancelAfter` (refund deadline).
@@ -132,8 +132,7 @@ See [`docs/architecture.md`](docs/architecture.md) for the detailed sequence dia
 │   └── types/                             # Jointly owned TypeScript type definitions
 ├── docs/                                  # Architectural specs, hosting guides, and integration docs
 │   ├── architecture.md                    # System architecture and sequence workflows
-│   ├── hosting.md                         # Production hosting & Vercel deployment instructions
-│   └── python-integration.md              # Python SDK / external agent integration guide
+│   └── hosting.md                         # Production hosting & Vercel deployment instructions
 ├── scripts/                               # Automation, verification, and live test scripts
 │   ├── smoke-demo.mjs                     # End-to-end API & auth smoke test
 │   ├── smoke-shopping.mjs                 # Shopping search & currency rate smoke test
@@ -160,8 +159,6 @@ All non-auth API endpoints require a valid session cookie generated via `/api/au
 | `POST` | `/api/transaction/escrow` | Manages XRPL Digital Safe lifecycle (`create`, `finish`, `cancel` escrows). |
 | `GET` | `/api/transaction/verify` | Queries XRPL for validated transaction status, ledger index, and audit memos. |
 | `POST` | `/api/catalog/deliver` | Triggers simulated merchant delivery updates for demonstration flows. |
-
-For external agent frameworks (Python, CrewAI, LangChain), refer to [`docs/python-integration.md`](docs/python-integration.md).
 
 ---
 
