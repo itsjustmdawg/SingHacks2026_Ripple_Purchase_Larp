@@ -115,6 +115,15 @@ export function PurchaseWorkspace({
     }
   }
 
+  function providerLogo(provider: string) {
+    return provider
+      .split(/\s+/)
+      .map((part) => part[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase();
+  }
+
   useEffect(() => {
     let active = true;
     purchaseService
@@ -510,7 +519,21 @@ export function PurchaseWorkspace({
               </ol>
               {result.catalog.offers.length > 0 && (
                 <>
-                  <h3>Compared for you</h3>
+                  <div className="comparison-heading">
+                    <div>
+                      <h3>Compared for you</h3>
+                      <p>
+                        {result.catalog.offers.length} matching deals found.
+                        The AI pick is highlighted, but every option stays
+                        visible for your review.
+                      </p>
+                    </div>
+                    {result.catalog.budgetXrp !== null && (
+                      <span className="tag">
+                        Budget {formatXrp(result.catalog.budgetXrp)} XRP
+                      </span>
+                    )}
+                  </div>
                   <div className="quote-list">
                     {result.catalog.offers.map((o) => {
                       const selected =
@@ -526,17 +549,30 @@ export function PurchaseWorkspace({
                           }
                         >
                           <div className="quote-top">
-                            <strong>
-                              {o.provider} · {o.service}
-                            </strong>
-                            <span>{formatXrp(o.priceXrp)} XRP</span>
+                            <div className="provider-lockup">
+                              <span className="provider-logo">
+                                {providerLogo(o.provider)}
+                              </span>
+                              <strong>
+                                {o.provider} · {o.service}
+                              </strong>
+                            </div>
+                            <div className="quote-price">
+                              <span>{formatXrp(o.priceXrp)} XRP</span>
+                              <small>/ month</small>
+                            </div>
                           </div>
                           <p>{o.description}</p>
+                          <div className="metric-row">
+                            {o.valueMetrics.map((metric) => (
+                              <span key={metric}>{metric}</span>
+                            ))}
+                          </div>
                           <div className="quote-footer">
-                            <span>{o.features.slice(0, 2).join(" · ")}</span>
+                            <span>{o.features.slice(0, 3).join(" · ")}</span>
                             <span>
                               {selected
-                                ? "Recommended"
+                                ? `AI pick${evaluation?.score !== null && evaluation?.score !== undefined ? ` · ${evaluation.score}/100` : ""}`
                                 : evaluation?.eligible === false
                                   ? "Over budget"
                                   : "Alternative"}

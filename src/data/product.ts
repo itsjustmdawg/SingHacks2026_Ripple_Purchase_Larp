@@ -80,6 +80,7 @@ export const categories = [
   "compute",
   "analytics",
   "furniture",
+  "debugging",
 ] as const;
 export const categoryLabels: Record<string, string> = {
   All: "Everything",
@@ -88,11 +89,16 @@ export const categoryLabels: Record<string, string> = {
   compute: "Compute",
   analytics: "Market data",
   furniture: "Office chairs",
+  debugging: "AI debugger",
 };
 export const sampleObjectives = [
   {
     label: "Cloud storage",
     text: "Find the best encrypted cloud storage under 5 XRP",
+  },
+  {
+    label: "AI debugger",
+    text: "Find an AI debugger for my company team under 5 XRP",
   },
   { label: "Office chair", text: "Find the best ergonomic chair under 5 XRP" },
   {
