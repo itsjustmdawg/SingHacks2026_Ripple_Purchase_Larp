@@ -31,6 +31,12 @@ export type {
   SpendingBudget,
 } from "./policy";
 export type {
+  EscrowAction,
+  EscrowCancelRequest,
+  EscrowCreateRequest,
+  EscrowFinishRequest,
+  EscrowStatus,
+  EscrowTransactionResult,
   TransactionRequest,
   TransactionResult,
   TransactionStatus,
