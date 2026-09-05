@@ -4,18 +4,24 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Check, ShieldCheck } from "lucide-react";
 import { PageHeader } from "@/components/ui/brand";
 import { agents, sampleObjectives } from "@/data/product";
-import { buildObjective } from "@/services/objective";
-export function LaunchFlow({ initialObjective }: { initialObjective: string }) {
+import { PriceFields } from "@/components/shopping/PriceFields";
+import type { SearchMode } from "@/types/shopping";
+export function LaunchFlow({
+  initialObjective,
+  initialPricing = "",
+  initialMode = "web",
+}: {
+  initialObjective: string;
+  initialPricing?: string;
+  initialMode?: SearchMode;
+}) {
   const [step, setStep] = useState(0);
   const [objective, setObjective] = useState(initialObjective);
-  const [budget, setBudget] = useState("5");
+  const [budget, setBudget] = useState(initialPricing);
+  const [mode, setMode] = useState<SearchMode>(initialMode);
   const [review, setReview] = useState(false);
   const router = useRouter();
-  const valid =
-    objective.trim().length > 0 &&
-    Number(budget) > 0 &&
-    /^\d+(\.\d{1,6})?$/.test(budget);
-  const finalObjective = buildObjective(objective, Number(budget));
+  const valid = objective.trim().length > 0 && budget.trim().length > 0;
   return (
     <main id="main" className="wrap page-main">
       <div className="launch-layout">
@@ -45,49 +51,51 @@ export function LaunchFlow({ initialObjective }: { initialObjective: string }) {
                 Be specific about the product and features you want. Your team
                 will handle the comparison.
               </p>
-              <label className="field">
-                Your purchase objective
-                <textarea
-                  maxLength={1700}
-                  value={objective}
-                  onChange={(e) => setObjective(e.target.value)}
-                  placeholder="I need reliable cloud storage with encryption…"
-                />
-              </label>
+              <PriceFields
+                item={objective}
+                pricing={budget}
+                onItem={setObjective}
+                onPricing={setBudget}
+              />
+              <fieldset className="search-mode">
+                <legend>Research mode</legend>
+                {(["web", "demo"] as const).map((m) => (
+                  <label key={m}>
+                    <input
+                      type="radio"
+                      name="launch-mode"
+                      checked={mode === m}
+                      onChange={() => setMode(m)}
+                    />
+                    {m === "web"
+                      ? "Web search · real sources"
+                      : "Testnet demo · sample catalog"}
+                  </label>
+                ))}
+              </fieldset>
               <div className="chips">
                 {sampleObjectives.map((x) => (
                   <button
                     key={x.label}
                     className="chip"
-                    onClick={() => setObjective(x.text)}
+                    onClick={() => {
+                      setObjective(x.text.replace(/\s+under.*$/i, ""));
+                      setBudget("max 5 XRP");
+                      setMode("demo");
+                    }}
                   >
-                    {x.label}
+                    Demo: {x.label}
                   </button>
                 ))}
               </div>
-              <label className="field" style={{ marginTop: 28 }}>
-                Maximum budget in XRP
-                <input
-                  type="number"
-                  min=".000001"
-                  step=".000001"
-                  value={budget}
-                  onChange={(e) => setBudget(e.target.value)}
-                  required
-                />
-              </label>
-              <p className="notice-inline">
-                The lower of your objective’s limit and this budget applies.
-                Server policy may impose a tighter limit.
-              </p>
             </>
           )}
           {step === 1 && (
             <>
               <h2>Meet the team behind your request.</h2>
               <p className="panel-subtitle">
-                Your existing five-step purchase pipeline, ready to work
-                together.
+                Scout searches and Analyst compares your price range. Treasury,
+                Policy and XRPL handle the separate Testnet payment demo.
               </p>
               <div className="launch-team">
                 {agents.map((a) => (
@@ -130,8 +138,10 @@ export function LaunchFlow({ initialObjective }: { initialObjective: string }) {
                   {objective}
                 </p>
                 <div className="quote-footer">
-                  <span>Maximum {budget} XRP</span>
-                  <span>XRPL Testnet</span>
+                  <span>{budget}</span>
+                  <span>
+                    {mode === "web" ? "Web research" : "XRPL Testnet demo"}
+                  </span>
                 </div>
               </div>
               <label className="review-check" style={{ marginTop: 25 }}>
@@ -141,8 +151,9 @@ export function LaunchFlow({ initialObjective }: { initialObjective: string }) {
                   onChange={(e) => setReview(e.target.checked)}
                 />
                 <span>
-                  I understand this is a demo catalog and all payments use
-                  Testnet XRP. Every payment still requires my review.
+                  {mode === "web"
+                    ? "Web prices and XRP equivalents are indicative. Buying happens at the seller; no funds move from this research."
+                    : "These are sample products and Testnet XRP only. Every payment requires my explicit review."}
                 </span>
               </label>
             </>
@@ -167,7 +178,11 @@ export function LaunchFlow({ initialObjective }: { initialObjective: string }) {
                 else
                   router.push(
                     "/dashboard?objective=" +
-                      encodeURIComponent(finalObjective),
+                      encodeURIComponent(objective) +
+                      "&pricing=" +
+                      encodeURIComponent(budget) +
+                      "&mode=" +
+                      mode,
                   );
               }}
             >

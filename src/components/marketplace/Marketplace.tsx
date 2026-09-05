@@ -152,7 +152,7 @@ export function Marketplace({ offers }: { offers: CatalogOffer[] }) {
                   </div>
                   <Link
                     href={
-                      "/launch?objective=" +
+                      "/launch?mode=demo&objective=" +
                       encodeURIComponent(
                         "Find " +
                           o.service +

@@ -60,7 +60,9 @@ export async function verifyTransaction(
     // Convert Ripple epoch seconds to ISO timestamp
     let confirmedAt: string | null = null;
     if (typeof txData.date === "number") {
-      confirmedAt = new Date((txData.date + RIPPLE_EPOCH_OFFSET) * 1000).toISOString();
+      confirmedAt = new Date(
+        (txData.date + RIPPLE_EPOCH_OFFSET) * 1000,
+      ).toISOString();
     }
 
     const txDetails = (
@@ -73,8 +75,13 @@ export async function verifyTransaction(
 
     // Extract delivered amount in XRP
     let deliveredXrp: number | undefined;
-    if (typeof meta === "object" && meta !== null && "delivered_amount" in meta) {
-      const delivered = (meta as { delivered_amount: unknown }).delivered_amount;
+    if (
+      typeof meta === "object" &&
+      meta !== null &&
+      "delivered_amount" in meta
+    ) {
+      const delivered = (meta as { delivered_amount: unknown })
+        .delivered_amount;
       if (typeof delivered === "string") {
         try {
           deliveredXrp = Number(dropsToXrp(delivered));
@@ -84,28 +91,37 @@ export async function verifyTransaction(
       }
     }
 
-    const isConfirmed = txResultCode === "tesSUCCESS";
+    const validated = txData.validated === true;
+    const isConfirmed = validated && txResultCode === "tesSUCCESS";
 
     return {
       transactionId: `verify-${cleanHash}`,
       proposalId,
-      status: isConfirmed ? "confirmed" : "failed",
+      status: !validated ? "pending" : isConfirmed ? "confirmed" : "failed",
       hash: cleanHash,
-      ledgerIndex,
+      ledgerIndex: validated ? ledgerIndex : null,
       explorerUrl,
       submittedAt: confirmedAt,
-      confirmedAt,
+      confirmedAt: validated ? confirmedAt : null,
       deliveredXrp,
-      sender: typeof txDetails.Account === "string" ? txDetails.Account : undefined,
-      destination: typeof txDetails.Destination === "string" ? txDetails.Destination : undefined,
+      sender:
+        typeof txDetails.Account === "string" ? txDetails.Account : undefined,
+      destination:
+        typeof txDetails.Destination === "string"
+          ? txDetails.Destination
+          : undefined,
       auditMemo,
-      error: isConfirmed
-        ? null
-        : `Transaction executed on-ledger with failure result: ${txResultCode}`,
+      error: !validated
+        ? "Transaction is not in a validated ledger yet. Retry the status check; do not resend the payment."
+        : isConfirmed
+          ? null
+          : `Transaction executed on-ledger with failure result: ${txResultCode}`,
     };
   } catch (error: unknown) {
     const errorStr = String(error);
-    const isNotFound = errorStr.includes("txnNotFound") || errorStr.includes("Transaction not found");
+    const isNotFound =
+      errorStr.includes("txnNotFound") ||
+      errorStr.includes("Transaction not found");
 
     return {
       transactionId: `verify-${cleanHash}`,

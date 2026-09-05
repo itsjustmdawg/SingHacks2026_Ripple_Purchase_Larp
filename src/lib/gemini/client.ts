@@ -30,6 +30,8 @@ export class GeminiClient implements GeminiJsonGenerator {
   }
 
   async generateJson(prompt: string, schema: object): Promise<unknown> {
+    // Bound all attempts together so a stalled model cannot exhaust a hosted route.
+    const signal = AbortSignal.timeout(18000);
     let response;
     for (let attempt = 0; ; attempt += 1) {
       try {
@@ -37,6 +39,8 @@ export class GeminiClient implements GeminiJsonGenerator {
           model: this.model,
           contents: prompt,
           config: {
+            abortSignal: signal,
+            httpOptions: { timeout: 18000 },
             temperature: 0.1,
             responseMimeType: "application/json",
             responseJsonSchema: schema,

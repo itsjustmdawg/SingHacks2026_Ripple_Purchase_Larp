@@ -6,6 +6,47 @@ independent policy decision, and verifiable XRP Ledger (XRPL) settlement.
 
 ## Website and demo login
 
+### Item + price research
+
+The workspace and Launch flow now use **two separate text fields**: the item or
+need, and the price requirement. Examples: `max 100 SGD`, `between 20 and 50 EUR`,
+`min 0.001 BTC`, or `5 XRP` (interpreted as a maximum). Ambiguous `$` currency,
+contradictory ranges and unknown token rates require clarification, never a guess.
+Original and converted bounds are shown before research; minimum and maximum
+constraints are independently enforced by code. Conversion uses dated daily
+[currency-api reference rates](https://github.com/fawazahmed0/exchange-api), not a
+live executable exchange quote. Missing or stale rates fail closed.
+
+**Web search** is the default. Gemini Scout uses Google Search grounding instead
+of the fixed catalog; Analyst extracts source-linked prices, and code checks the
+XRP range. These are reported web prices, not guaranteed merchant quotes. Sources
+and Google Search suggestions are displayed. No merchant wallet is invented, and
+no web listing is routed to a demo payment address. Actual purchases require the
+seller's checkout or a future verified XRPL merchant integration.
+
+**Account requirement:** the configured key returned `429 RESOURCE_EXHAUSTED`
+during grounding verification. Google currently lists Search grounding as
+unavailable on the free API tier ([pricing](https://ai.google.dev/gemini-api/docs/pricing)).
+The integration is implemented, but source-backed automated web search cannot be
+verified with this account until grounding access/quota is available. No billing
+was enabled. Users get an explicit explanation, retry and external Google Shopping
+link; generated catalog results are never mislabeled as a successful web search.
+
+**Testnet demo** remains explicitly selectable for the existing sample catalog
+and on-chain payment workflow. Live web discovery does not claim fulfillment.
+`POST /api/shopping/prepare` interprets prices and signs a ten-minute conversion
+preview; `POST /api/shopping/search` verifies it and performs the chosen search.
+
+Research errors include retry/edit actions and a next step. Payment errors retain
+the hash, distinguish pre-submission failures from uncertain settlement, and offer
+read-only status retries. A browser-persisted pending attempt blocks another
+payment after reload until reconciled or explicitly acknowledged after checking
+the ledger. This is not durable distributed idempotency across all clients;
+production requires a server-side transaction journal and submission queue.
+
+Run `node --env-file=.env.local scripts/smoke-shopping.mjs http://localhost:3000`
+for the live demo/rate checks; add `--web` only when grounding quota is available.
+
 The orange/charcoal responsive website includes Home, Marketplace, Agents,
 agent profiles, Developers, a three-step Launch flow, Purchase Workspace,
 Team, and Activity. The frontend uses TypeScript, React and Next.js; the existing
