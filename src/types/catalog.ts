@@ -1,5 +1,10 @@
 export type CatalogCategory =
-  "storage" | "api" | "compute" | "analytics" | "furniture";
+  | "storage"
+  | "api"
+  | "compute"
+  | "analytics"
+  | "furniture"
+  | "debugging";
 
 export interface CatalogOffer {
   id: string;
@@ -13,6 +18,7 @@ export interface CatalogOffer {
   responseTimeMs: number;
   reliabilityScore: number;
   features: readonly string[];
+  valueMetrics: readonly string[];
 }
 
 export interface CatalogSearchResult {

@@ -71,6 +71,8 @@ type EscrowPhase =
   | "cancelling"
   | "cancelled";
 
+const INITIAL_VISIBLE_OFFERS = 3;
+
 export function PurchaseWorkspace({
   initialObjective,
   initialPricing = "",
@@ -99,6 +101,9 @@ export function PurchaseWorkspace({
   const [confirmed, setConfirmed] = useState(false);
   const [copied, setCopied] = useState(false);
   const [verified, setVerified] = useState(false);
+  const [visibleOfferCount, setVisibleOfferCount] = useState(
+    INITIAL_VISIBLE_OFFERS,
+  );
 
   // Escrow & Digital Safe state
   const [settlementMode, setSettlementMode] =
@@ -205,6 +210,15 @@ export function PurchaseWorkspace({
     }
   }
 
+  function providerLogo(provider: string) {
+    return provider
+      .split(/\s+/)
+      .map((part) => part[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase();
+  }
+
   useEffect(() => {
     const sync = () => {
       const pending = getPendingPayment();
@@ -258,6 +272,7 @@ export function PurchaseWorkspace({
     }
     setConfirmed(false);
     setVerified(false);
+    setVisibleOfferCount(INITIAL_VISIBLE_OFFERS);
     setPhase("idle");
   }
   async function checkPayment() {
@@ -869,6 +884,12 @@ export function PurchaseWorkspace({
                 ? 2
                 : 1;
 
+  const visibleOffers = result?.catalog.offers.slice(0, visibleOfferCount) ?? [];
+  const hiddenOfferCount = Math.max(
+    0,
+    (result?.catalog.offers.length ?? 0) - visibleOffers.length,
+  );
+
   return (
     <main id="main" className="wrap page-main">
       <WorkspaceNav />
@@ -877,6 +898,20 @@ export function PurchaseWorkspace({
         title="What can we take off your plate?"
         description="Tell us what you need and your price range in your currency. Research the web, or explicitly choose the Testnet payment demo."
       />
+      <div className="buyer-cues" aria-label="How Purchase LARP helps buyers">
+        <div>
+          <Sparkles size={18} />
+          <span>Say what you need</span>
+        </div>
+        <div>
+          <CheckCircle2 size={18} />
+          <span>Compare eligible choices</span>
+        </div>
+        <div>
+          <ShieldCheck size={18} />
+          <span>You approve first</span>
+        </div>
+      </div>
       <div className="purchase-progress">
         {(mode === "web"
           ? ["Item & price", "Web research", "Compare & visit seller"]
@@ -1163,9 +1198,23 @@ export function PurchaseWorkspace({
               </ol>
               {result.catalog.offers.length > 0 && (
                 <>
-                  <h3>Compared for you</h3>
+                  <div className="comparison-heading">
+                    <div>
+                      <h3>Compared for you</h3>
+                      <p>
+                        {result.catalog.offers.length} matching deals found.
+                        The recommended option is highlighted, with more sample
+                        choices available for review.
+                      </p>
+                    </div>
+                    {result.catalog.budgetXrp !== null && (
+                      <span className="tag">
+                        Budget {formatXrp(result.catalog.budgetXrp)} XRP
+                      </span>
+                    )}
+                  </div>
                   <div className="quote-list">
-                    {result.catalog.offers.map((o) => {
+                    {visibleOffers.map((o) => {
                       const selected =
                         result.analysis.selectedOffer?.id === o.id;
                       const evaluation = result.analysis.evaluations.find(
@@ -1179,17 +1228,29 @@ export function PurchaseWorkspace({
                           }
                         >
                           <div className="quote-top">
-                            <strong>
-                              {o.provider} · {o.service}
-                            </strong>
-                            <span>{formatXrp(o.priceXrp)} XRP</span>
+                            <div className="provider-lockup">
+                              <span className="provider-logo">
+                                {providerLogo(o.provider)}
+                              </span>
+                              <strong>
+                                {o.provider} · {o.service}
+                              </strong>
+                            </div>
+                            <div className="quote-price">
+                              <span>{formatXrp(o.priceXrp)} XRP</span>
+                            </div>
                           </div>
                           <p>{o.description}</p>
+                          <div className="metric-row">
+                            {o.valueMetrics.map((metric) => (
+                              <span key={metric}>{metric}</span>
+                            ))}
+                          </div>
                           <div className="quote-footer">
-                            <span>{o.features.slice(0, 2).join(" · ")}</span>
+                            <span>{o.features.slice(0, 3).join(" · ")}</span>
                             <span>
                               {selected
-                                ? "Recommended"
+                                ? `Recommended${evaluation?.score !== null && evaluation?.score !== undefined ? ` · ${evaluation.score}/100` : ""}`
                                 : evaluation?.eligible === false
                                   ? "Over budget"
                                   : "Alternative"}
@@ -1199,6 +1260,23 @@ export function PurchaseWorkspace({
                       );
                     })}
                   </div>
+                  {result.catalog.offers.length > INITIAL_VISIBLE_OFFERS && (
+                    <button
+                      type="button"
+                      className="button button-ghost show-more-deals"
+                      onClick={() =>
+                        setVisibleOfferCount((count) =>
+                          hiddenOfferCount > 0
+                            ? Math.min(count + 3, result.catalog.offers.length)
+                            : INITIAL_VISIBLE_OFFERS,
+                        )
+                      }
+                    >
+                      {hiddenOfferCount > 0
+                        ? `See ${hiddenOfferCount} more deal${hiddenOfferCount === 1 ? "" : "s"}`
+                        : "Show fewer deals"}
+                    </button>
+                  )}
                 </>
               )}
               {result.policyDecision && (

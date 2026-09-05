@@ -1410,6 +1410,37 @@ h2 > span {
   width: 100%;
   padding: 15px;
 }
+.password-field {
+  position: relative;
+  display: block;
+}
+.password-field input {
+  padding-right: 50px;
+}
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  transition:
+    color 0.2s,
+    background 0.2s,
+    border-color 0.2s;
+}
+.password-toggle:hover,
+.password-toggle[aria-pressed="true"] {
+  color: var(--amber);
+  background: #ffffff08;
+  border-color: var(--line);
+}
 .field textarea {
   resize: vertical;
   line-height: 1.6;
@@ -1579,6 +1610,27 @@ h2 > span {
   gap: 10px;
   margin: 30px 0;
 }
+.buyer-cues {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 28px 0 12px;
+}
+.buyer-cues > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #ffffff04;
+  color: var(--text);
+  font-size: 12px;
+}
+.buyer-cues svg {
+  color: var(--amber);
+}
 .purchase-progress > div {
   display: flex;
   gap: 8px;
@@ -1686,11 +1738,32 @@ h2 > span {
   gap: 12px;
   margin-top: 22px;
 }
+.comparison-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 4px;
+}
+.comparison-heading p {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
 .quote {
   padding: 18px;
   background: #ffffff03;
   border: 1px solid var(--line);
   border-radius: 10px;
+  transition:
+    transform 0.18s,
+    border-color 0.18s,
+    background 0.18s;
+}
+.quote:hover {
+  transform: translateY(-2px);
+  border-color: #ff8a3d55;
+  background: #ffffff06;
 }
 .quote-selected {
   border-color: #ff5a1f70;
@@ -1706,13 +1779,56 @@ h2 > span {
   font-size: 13px;
   font-weight: 500;
 }
-.quote-top > span {
+.provider-lockup {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+.provider-logo {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: #ffffff0b;
+  border: 1px solid #ffffff18;
+  color: var(--amber);
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.quote-price {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  white-space: nowrap;
+}
+.quote-price > span {
   font-size: 17px;
+}
+.quote-price > small {
+  color: var(--dim);
+  font-size: 10px;
 }
 .quote p {
   font-size: 11px;
   color: var(--muted);
   margin: 7px 0;
+}
+.metric-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 12px 0 14px;
+}
+.metric-row span {
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #ffffff06;
+  color: #dededd;
+  font-size: 10px;
+  border: 1px solid #ffffff0d;
 }
 .quote-footer {
   display: flex;
@@ -1723,6 +1839,10 @@ h2 > span {
 }
 .quote-selected .quote-footer {
   color: var(--amber);
+}
+.show-more-deals {
+  width: 100%;
+  margin-top: 14px;
 }
 .review-panel {
   margin-top: 24px;
@@ -2493,6 +2613,9 @@ h2 > span {
   .purchase-progress {
     gap: 6px;
     flex-wrap: wrap;
+  }
+  .buyer-cues {
+    grid-template-columns: 1fr;
   }
   .purchase-progress > div {
     font-size: 10px;

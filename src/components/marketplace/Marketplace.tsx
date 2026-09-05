@@ -11,6 +11,7 @@ import {
   Cpu,
   Armchair,
   ChartNoAxesCombined,
+  Wrench,
   SlidersHorizontal,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/brand";
@@ -22,6 +23,7 @@ const icons = {
   compute: Cpu,
   analytics: ChartNoAxesCombined,
   furniture: Armchair,
+  debugging: Wrench,
 };
 export function Marketplace({ offers }: { offers: CatalogOffer[] }) {
   const [q, setQ] = useState("");

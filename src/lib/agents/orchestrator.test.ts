@@ -22,7 +22,7 @@ describe("runMultiAgentPipeline", () => {
       { now: NOW, policyContext: createDevelopmentPolicyContext(), model: null },
     );
 
-    expect(result.catalog.offers).toHaveLength(3);
+    expect(result.catalog.offers).toHaveLength(5);
     expect(result.analysis.selectedOffer?.provider).toBe("CloudDrop");
     expect(result.proposal).toMatchObject({
       action: "payment",
