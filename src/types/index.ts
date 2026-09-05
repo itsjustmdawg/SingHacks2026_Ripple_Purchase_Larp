@@ -7,6 +7,19 @@ export type {
   SupportedCurrency,
 } from "./agent";
 export type {
+  CatalogCategory,
+  CatalogOffer,
+  CatalogSearchResult,
+} from "./catalog";
+export type {
+  AgentTraceEvent,
+  AgentTraceStatus,
+  DealAnalysis,
+  MultiAgentPipelineResult,
+  PipelineAgent,
+  QuoteEvaluation,
+} from "./multi-agent";
+export type {
   HumanApprovalPolicy,
   PaymentApproval,
   PolicyDecision,

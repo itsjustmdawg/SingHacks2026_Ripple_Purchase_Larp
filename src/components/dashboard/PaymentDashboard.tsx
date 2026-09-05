@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type {
+  AgentTraceEvent,
+  CatalogOffer,
+  MultiAgentPipelineResult,
   PaymentProposal,
   PolicyDecision,
   TransactionResult,
@@ -35,22 +38,24 @@ interface VerificationResponse extends TransactionResult {
   deliveredXrp?: number;
 }
 
-// Public, checksum-valid, unfunded Testnet demo recipient. No private key is stored.
-const DEMO_ADDRESS = "rJn2prkitEBcrzLZhzVQkeTzDgaF9VxY7c";
-const DEFAULT_OBJECTIVE = `Pay 1 XRP to ${DEMO_ADDRESS} for a one-month analytics subscription`;
+const DEFAULT_OBJECTIVE = "Find the best encrypted cloud storage under 5 XRP";
 
 const examples = [
   {
     label: "Analytics",
-    value: DEFAULT_OBJECTIVE,
+    value: "Choose the best market analytics subscription within 5 XRP",
   },
   {
     label: "Cloud storage",
-    value: `Send 2.5 XRP to ${DEMO_ADDRESS} for encrypted cloud storage`,
+    value: DEFAULT_OBJECTIVE,
   },
   {
     label: "API credits",
-    value: `Purchase 5 XRP of API credits from ${DEMO_ADDRESS}`,
+    value: "Buy the most reliable API credits under 4.5 XRP",
+  },
+  {
+    label: "Compute",
+    value: "Find a fast compute service with a maximum budget of 5 XRP",
   },
 ] as const;
 
@@ -163,19 +168,42 @@ function StatusDot({ online }: { online: boolean }) {
   );
 }
 
+const agentAppearance = {
+  market_scout: { glyph: "MS", color: "border-cyan-300/20 bg-cyan-300/10 text-cyan-200" },
+  deal_analyst: { glyph: "DA", color: "border-indigo-300/20 bg-indigo-300/10 text-indigo-200" },
+  treasury: { glyph: "TR", color: "border-violet-300/20 bg-violet-300/10 text-violet-200" },
+  policy_engine: { glyph: "PE", color: "border-emerald-300/20 bg-emerald-300/10 text-emerald-200" },
+  xrpl_agent: { glyph: "XR", color: "border-amber-300/20 bg-amber-300/10 text-amber-200" },
+} as const;
+
+function createXrplTrace(
+  proposalId: string,
+  status: AgentTraceEvent["status"],
+  message: string,
+): AgentTraceEvent {
+  return {
+    id: `${proposalId}:xrpl`,
+    agent: "xrpl_agent",
+    label: "XRPL Agent",
+    status,
+    message,
+    timestamp: new Date().toISOString(),
+  };
+}
+
 function StageTracker({ status }: { status: WorkflowStatus }) {
   const activeIndex = {
-    idle: 0,
-    planning: 1,
-    review: 2,
-    submitting: 3,
-    confirmed: 4,
-    failed: 3,
+    idle: 1,
+    planning: 2,
+    review: 5,
+    submitting: 5,
+    confirmed: 6,
+    failed: 5,
   }[status];
-  const stages = ["Objective", "Agent proposal", "Policy review", "XRPL proof"];
+  const stages = ["Objective", "Scout", "Analyst", "Policy", "XRPL"];
 
   return (
-    <ol className="grid grid-cols-4 gap-1" aria-label="Payment workflow">
+    <ol className="grid grid-cols-5 gap-1" aria-label="Payment workflow">
       {stages.map((stage, index) => {
         const number = index + 1;
         const complete = number < activeIndex || status === "confirmed";
@@ -214,12 +242,110 @@ function StageTracker({ status }: { status: WorkflowStatus }) {
   );
 }
 
+function OfferCard({
+  offer,
+  pipeline,
+}: {
+  offer: CatalogOffer;
+  pipeline: MultiAgentPipelineResult;
+}) {
+  const evaluation = pipeline.analysis.evaluations.find(
+    (candidate) => candidate.offerId === offer.id,
+  );
+  const selected = pipeline.analysis.selectedOffer?.id === offer.id;
+
+  return (
+    <li
+      className={`rounded-xl border p-3 transition ${
+        selected
+          ? "border-cyan-300/35 bg-cyan-300/[0.07]"
+          : evaluation?.eligible === false
+            ? "border-rose-300/10 bg-rose-300/[0.025] opacity-65"
+            : "border-white/8 bg-white/[0.025]"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-xs font-semibold text-slate-200">
+            {offer.provider}
+          </p>
+          <p className="mt-0.5 truncate text-[10px] text-slate-600">
+            {offer.service}
+          </p>
+        </div>
+        <strong className="shrink-0 text-xs text-cyan-200">
+          {formatXrp(offer.priceXrp)} XRP
+        </strong>
+      </div>
+      <div className="mt-2 flex items-center justify-between text-[10px] text-slate-500">
+        <span>{offer.uptimePercent}% uptime</span>
+        <span>
+          {evaluation?.eligible === false
+            ? "Over budget"
+            : selected
+              ? `Selected · ${evaluation?.score ?? "—"}/100`
+              : `${evaluation?.score ?? "—"}/100`}
+        </span>
+      </div>
+    </li>
+  );
+}
+
+function CollaborationFeed({ trace }: { trace: AgentTraceEvent[] }) {
+  return (
+    <ol className="mt-5 space-y-3" aria-live="polite">
+      {trace.map((event, index) => {
+        const appearance = agentAppearance[event.agent];
+        const isFailure = event.status === "denied" || event.status === "failed";
+        const isWorking = event.status === "working";
+
+        return (
+          <li className="relative flex gap-3" key={event.id}>
+            {index < trace.length - 1 ? (
+              <span
+                aria-hidden="true"
+                className="absolute bottom-[-14px] left-[17px] top-9 w-px bg-white/8"
+              />
+            ) : null}
+            <span
+              className={`relative grid h-9 w-9 shrink-0 place-items-center rounded-xl border text-[10px] font-black tracking-tight ${appearance.color}`}
+            >
+              {isWorking ? <Spinner /> : appearance.glyph}
+            </span>
+            <div className="min-w-0 flex-1 rounded-xl border border-white/8 bg-[#07101f]/75 px-3.5 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-slate-200">{event.label}</p>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[9px] font-bold tracking-wide uppercase ${
+                    isFailure
+                      ? "bg-rose-300/10 text-rose-300"
+                      : isWorking
+                        ? "bg-amber-300/10 text-amber-300"
+                        : "bg-emerald-300/10 text-emerald-300"
+                  }`}
+                >
+                  {event.status}
+                </span>
+              </div>
+              <p className="mt-1.5 text-xs leading-5 text-slate-400">
+                {event.message}
+              </p>
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 export function PaymentDashboard() {
   const [objective, setObjective] = useState(DEFAULT_OBJECTIVE);
   const [wallet, setWallet] = useState<WalletInfo | null>(null);
   const [walletLoading, setWalletLoading] = useState(true);
   const [walletError, setWalletError] = useState<string | null>(null);
   const [status, setStatus] = useState<WorkflowStatus>("idle");
+  const [pipeline, setPipeline] = useState<MultiAgentPipelineResult | null>(null);
+  const [trace, setTrace] = useState<AgentTraceEvent[]>([]);
   const [proposal, setProposal] = useState<PaymentProposal | null>(null);
   const [policy, setPolicy] = useState<PolicyDecision | null>(null);
   const [transaction, setTransaction] = useState<TransactionResponse | null>(null);
@@ -270,7 +396,10 @@ export function PaymentDashboard() {
     };
   }, []);
 
-  const canAnalyze = objective.trim().length > 0 && status !== "planning";
+  const canAnalyze =
+    objective.trim().length > 0 &&
+    status !== "planning" &&
+    status !== "submitting";
   const canSubmit =
     proposal?.action === "payment" &&
     policy?.approved === true &&
@@ -286,6 +415,17 @@ export function PaymentDashboard() {
     if (!canAnalyze) return;
 
     setStatus("planning");
+    setPipeline(null);
+    setTrace([
+      {
+        id: "scout-working",
+        agent: "market_scout",
+        label: "Market Scout",
+        status: "working",
+        message: "Searching the mock marketplace for matching offers…",
+        timestamp: new Date().toISOString(),
+      },
+    ]);
     setProposal(null);
     setPolicy(null);
     setTransaction(null);
@@ -295,7 +435,7 @@ export function PaymentDashboard() {
 
     try {
       const requestId = `ui-${Date.now()}`;
-      const agentResponse = await fetch("/api/agent", {
+      const agentResponse = await fetch("/api/agents/orchestrate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -307,29 +447,19 @@ export function PaymentDashboard() {
       const agentBody: unknown = await agentResponse.json();
       if (!agentResponse.ok) {
         throw new Error(
-          getResponseError(agentBody, "The agent could not interpret this objective."),
+          getResponseError(agentBody, "The agent team could not process this objective."),
         );
       }
 
-      const nextProposal = agentBody as PaymentProposal;
-      setProposal(nextProposal);
-
-      const policyResponse = await fetch("/api/policy", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(nextProposal),
-      });
-      const policyBody: unknown = await policyResponse.json();
-      if (!policyResponse.ok) {
-        throw new Error(
-          getResponseError(policyBody, "The policy service could not review this proposal."),
-        );
-      }
-
-      const nextPolicy = policyBody as PolicyDecision;
-      setPolicy(nextPolicy);
+      const nextPipeline = agentBody as MultiAgentPipelineResult;
+      setPipeline(nextPipeline);
+      setTrace(nextPipeline.trace);
+      setProposal(nextPipeline.proposal);
+      setPolicy(nextPipeline.policyDecision);
       setStatus("review");
-      if (!nextPolicy.approved) {
+      if (!nextPipeline.proposal) {
+        setError("No catalog offer matched the objective and user budget.");
+      } else if (!nextPipeline.policyDecision?.approved) {
         setError("Policy denied this proposal. Review the failed rules below.");
       }
     } catch (caught) {
@@ -347,6 +477,14 @@ export function PaymentDashboard() {
     setTransaction(null);
     setVerification(null);
     setError(null);
+    setTrace((current) => [
+      ...current.filter((event) => event.agent !== "xrpl_agent"),
+      createXrplTrace(
+        proposal.id,
+        "working",
+        "Re-checking policy, signing locally, and broadcasting to XRPL Testnet…",
+      ),
+    ]);
 
     try {
       const response = await fetch("/api/transaction", {
@@ -381,17 +519,33 @@ export function PaymentDashboard() {
       }
 
       setStatus("confirmed");
+      setTrace((current) => [
+        ...current.filter((event) => event.agent !== "xrpl_agent"),
+        createXrplTrace(
+          proposal.id,
+          "confirmed",
+          `Validated on XRPL Testnet${nextTransaction.ledgerIndex ? ` in ledger ${nextTransaction.ledgerIndex}` : ""}; receipt ${nextTransaction.hash ?? "recorded"}.`,
+        ),
+      ]);
       void loadWallet();
     } catch (caught) {
       setStatus("failed");
+      const message =
+        caught instanceof Error ? caught.message : "Unable to submit the payment.";
+      setTrace((current) => [
+        ...current.filter((event) => event.agent !== "xrpl_agent"),
+        createXrplTrace(proposal.id, "failed", `Settlement stopped: ${message}`),
+      ]);
       setError(
-        caught instanceof Error ? caught.message : "Unable to submit the payment.",
+        message,
       );
     }
   }
 
   function resetWorkflow() {
     setStatus("idle");
+    setPipeline(null);
+    setTrace([]);
     setProposal(null);
     setPolicy(null);
     setTransaction(null);
@@ -429,11 +583,11 @@ export function PaymentDashboard() {
                   Purchase LARP
                 </h1>
                 <span className="rounded-full border border-cyan-300/20 bg-cyan-300/8 px-2 py-0.5 text-[10px] font-bold tracking-[0.12em] text-cyan-300 uppercase">
-                  Agentic
+                  5-agent pipeline
                 </span>
               </div>
               <p className="mt-0.5 text-xs text-slate-500">
-                Policy-governed payments on the XRP Ledger
+                Autonomous procurement with policy-governed XRPL settlement
               </p>
             </div>
           </div>
@@ -472,11 +626,12 @@ export function PaymentDashboard() {
               Autonomous checkout console
             </p>
             <h2 className="mt-3 text-balance text-3xl font-semibold tracking-[-0.035em] text-white sm:text-4xl lg:text-5xl">
-              Turn intent into a verified payment.
+              Let agents find, compare, and pay.
             </h2>
             <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-400 sm:text-base">
-              Describe the purchase. The agent proposes, policy authorizes, and
-              XRPL Testnet provides the receipt.
+              Describe the outcome. Specialist agents scout the catalog, rank
+              offers, build a proposal, pass an independent policy gate, and
+              settle only after your review.
             </p>
           </div>
 
@@ -488,7 +643,7 @@ export function PaymentDashboard() {
                     Purchase objective
                   </p>
                   <h3 className="mt-1.5 text-lg font-semibold text-white">
-                    What should the agent pay for?
+                    What should the agent team procure?
                   </h3>
                 </div>
                 <span className="rounded-lg bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium text-slate-500">
@@ -508,7 +663,7 @@ export function PaymentDashboard() {
                   setObjective(event.target.value);
                   if (status !== "idle") resetWorkflow();
                 }}
-                placeholder={`Pay 1 XRP to ${DEMO_ADDRESS} for...`}
+                placeholder="Find the best cloud storage under 5 XRP"
                 value={objective}
               />
 
@@ -549,7 +704,7 @@ export function PaymentDashboard() {
                   type="button"
                 >
                   {status === "planning" ? <Spinner /> : null}
-                  {status === "planning" ? "Agent is reasoning" : "Generate proposal"}
+                  {status === "planning" ? "Agents collaborating" : "Run agent team"}
                   {status === "planning" ? null : <ArrowIcon />}
                 </button>
               </div>
@@ -609,7 +764,7 @@ export function PaymentDashboard() {
                   Guardrails active
                 </p>
                 <ul className="mt-4 space-y-3 text-xs text-slate-400">
-                  {["Server-owned spend limits", "Checksum-valid XRPL address", "Explicit review before signing"].map(
+                  {["Server-owned spend limits", "Independent policy gate", "Explicit review before signing"].map(
                     (guardrail) => (
                       <li className="flex items-center gap-2.5" key={guardrail}>
                         <span className="grid h-5 w-5 place-items-center rounded-full bg-emerald-400/10 text-emerald-300">
@@ -627,6 +782,72 @@ export function PaymentDashboard() {
 
         <section className="mt-5 rounded-2xl border border-white/8 bg-[#0b1628]/60 px-4 py-5 sm:px-8">
           <StageTracker status={status} />
+        </section>
+
+        <section className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.65fr)]">
+          <article className="rounded-2xl border border-white/10 bg-[#0b1628]/90 p-5 sm:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold tracking-[0.14em] text-cyan-300 uppercase">
+                  Agent collaboration feed
+                </p>
+                <h3 className="mt-1.5 text-lg font-semibold text-white">
+                  Auditable decision receipts
+                </h3>
+              </div>
+              <span className="rounded-full border border-white/8 bg-white/[0.035] px-2.5 py-1 text-[10px] font-semibold text-slate-500">
+                {trace.length} event{trace.length === 1 ? "" : "s"}
+              </span>
+            </div>
+            <p className="mt-2 max-w-2xl text-xs leading-5 text-slate-500">
+              Each specialist exposes its result and hands structured data to the
+              next stage. These are concise decision summaries, not hidden model reasoning.
+            </p>
+
+            {trace.length > 0 ? (
+              <CollaborationFeed trace={trace} />
+            ) : (
+              <div className="mt-5 grid min-h-40 place-items-center rounded-xl border border-dashed border-white/10 bg-white/[0.015] px-6 text-center">
+                <div>
+                  <p className="text-sm font-medium text-slate-400">Agent team is idle</p>
+                  <p className="mt-1 text-xs text-slate-600">
+                    Run an objective to see the scout-to-settlement handoffs.
+                  </p>
+                </div>
+              </div>
+            )}
+          </article>
+
+          <aside className="rounded-2xl border border-white/10 bg-[#0b1628]/90 p-5 sm:p-6">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold tracking-[0.14em] text-indigo-300 uppercase">
+                  Quote comparison
+                </p>
+                <h3 className="mt-1.5 text-base font-semibold text-white">
+                  Mock marketplace
+                </h3>
+              </div>
+              {pipeline?.catalog.budgetXrp ? (
+                <span className="rounded-full bg-indigo-300/10 px-2.5 py-1 text-[10px] font-bold text-indigo-200">
+                  ≤ {formatXrp(pipeline.catalog.budgetXrp)} XRP
+                </span>
+              ) : null}
+            </div>
+            {pipeline ? (
+              <ul className="mt-5 space-y-2.5">
+                {pipeline.catalog.offers.map((offer) => (
+                  <OfferCard key={offer.id} offer={offer} pipeline={pipeline} />
+                ))}
+              </ul>
+            ) : (
+              <div className="mt-5 grid min-h-40 place-items-center rounded-xl border border-dashed border-white/10 bg-white/[0.015] px-5 text-center">
+                <p className="text-xs leading-5 text-slate-600">
+                  Provider prices, uptime, latency, and analyst scores appear here.
+                </p>
+              </div>
+            )}
+          </aside>
         </section>
 
         {error ? (
@@ -649,7 +870,7 @@ export function PaymentDashboard() {
                   Agent proposal
                 </p>
                 <h3 className="mt-1.5 text-lg font-semibold text-white">
-                  Structured payment intent
+                  Treasury payment proposal
                 </h3>
               </div>
               {proposal ? (
@@ -681,7 +902,7 @@ export function PaymentDashboard() {
                 </div>
                 <div className="mt-3 rounded-xl border border-white/8 bg-[#07101f] p-4">
                   <p className="text-[10px] font-semibold tracking-wide text-slate-600 uppercase">
-                    Agent reasoning
+                    Decision summary
                   </p>
                   <p className="mt-2 text-sm leading-6 text-slate-300">{proposal.reason}</p>
                   <div className="mt-4 flex items-center gap-3">

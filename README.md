@@ -1,12 +1,8 @@
 # Autonomous Agentic Payments System
 
-An AI-assisted payment workflow that turns a user objective into a structured
-proposal, evaluates it through an independent policy engine, settles approved
-payments on the XRP Ledger (XRPL), and presents verifiable on-chain proof.
-
-> Agent intent extraction and policy evaluation are implemented. Wallet
-> management, XRPL submission, and ledger verification are intentionally not
-> implemented yet.
+A multi-agent procurement workflow that turns a user objective into catalog
+research, a scored vendor selection, a structured payment proposal, an
+independent policy decision, and verifiable XRP Ledger (XRPL) settlement.
 
 ## Problem
 
@@ -16,29 +12,33 @@ boundary: model reasoning alone must never determine whether funds can move.
 
 ## Proposed solution
 
-The system separates four concerns:
+The system separates six concerns:
 
-1. An AI agent interprets a user's objective and proposes a payment action.
-2. An independent policy engine approves or rejects the structured proposal.
-3. An XRPL service executes approved requests and verifies ledger confirmation.
-4. A frontend dashboard shows the complete decision and transaction trail.
+1. A Market Scout queries a mock service catalog.
+2. A Deal Analyst filters the user budget and ranks eligible quotes.
+3. A Treasury agent converts the selected quote into a typed payment proposal.
+4. An independent policy engine approves or rejects that proposal.
+5. The user reviews the exact recipient and amount before signing.
+6. An XRPL agent settles approved requests and returns validated-ledger proof.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    U[User Objective] --> A[AI Agent]
-    A --> P[Payment Proposal]
-    P --> R[Policy Engine]
-    R -->|Approved| X[XRPL Transaction Layer]
-    R -->|Rejected| D[Decision Returned]
+    U[User Objective] --> S[Market Scout]
+    S --> A[Deal Analyst]
+    A --> T[Treasury]
+    T --> P[Payment Proposal]
+    P --> R[Independent Policy]
+    R -->|Approved + reviewed| X[XRPL Agent]
+    R -->|Rejected| D[Decision Receipt]
     X --> L[XRP Ledger]
     L --> V[Transaction Verification]
     V --> UI[Frontend Dashboard]
 ```
 
-The agent proposes, the policy engine authorizes, and the XRPL layer executes.
-No layer should take on another layer's responsibility. See
+The specialist agents discover and propose, the policy engine authorizes, and
+the XRPL layer executes. No layer takes on another layer's responsibility. See
 [`docs/architecture.md`](docs/architecture.md) for the end-to-end sequence.
 
 ## Repository structure
@@ -48,6 +48,7 @@ src/
 ├── app/                    # App Router pages and thin API adapters
 │   ├── api/
 │   │   ├── agent/
+│   │   ├── agents/orchestrate/
 │   │   ├── policy/
 │   │   └── transaction/
 │   └── dashboard/
@@ -55,6 +56,8 @@ src/
 ├── config/                 # Non-secret application configuration
 ├── lib/
 │   ├── agent/              # Intent and proposal generation
+│   ├── agents/             # Scout, analyst, treasury, and orchestration
+│   ├── catalog/            # Mock service marketplace
 │   ├── policy/             # Independent authorization rules
 │   ├── utils/              # Small shared implementation utilities
 │   └── xrpl/               # Transaction and verification boundary
@@ -65,7 +68,7 @@ src/
 
 | Workstream | Primary ownership | Responsibility |
 | --- | --- | --- |
-| Person 1 — AI Agent | `src/lib/agent/` | Interpret objectives and create structured proposals |
+| Person 1 — AI Agents | `src/lib/agent/`, `src/lib/agents/`, `src/lib/catalog/` | Scout, compare, and create structured proposals |
 | Person 2 — Policy Engine | `src/lib/policy/` | Evaluate rules and return approval decisions |
 | Person 3 — XRPL Transactions | `src/lib/xrpl/` | Build, submit, confirm, and verify transactions |
 | Person 4 — Frontend + Integration | `src/app/`, `src/components/` | Build the dashboard and connect API boundaries |
@@ -103,8 +106,8 @@ exception.
 | `LLM_MODEL` | OpenAI model ID; defaults to `gpt-5.6-luna` |
 | `LLM_BASE_URL` | Optional OpenAI-compatible API base URL override |
 | `XRPL_NETWORK` | XRPL network; use `testnet` during development |
-| `XRPL_RPC_URL` | Future XRPL JSON-RPC/WebSocket endpoint |
-| `XRPL_WALLET_SEED` | Future local Testnet wallet seed |
+| `XRPL_RPC_URL` | Optional XRPL WebSocket endpoint override |
+| `XRPL_WALLET_SEED` | Optional local Testnet wallet seed |
 
 Never commit wallet seeds, private keys, or API credentials. Do not use
 production or mainnet credentials during early development.
@@ -114,6 +117,7 @@ production or mainnet credentials during early development.
 | Endpoint | Input | Current behavior |
 | --- | --- | --- |
 | `POST /api/agent` | `AgentRequest` | Returns a structured proposal using the configured model or deterministic fallback |
+| `POST /api/agents/orchestrate` | `AgentRequest` | Runs scout, analyst, treasury, and policy stages and returns their decision receipts |
 | `POST /api/policy` | `PaymentProposal` | Returns a `PolicyDecision` using temporary development rules |
 | `POST /api/transaction` | `PaymentProposal` | Re-authorizes the proposal server-side, then submits approved XRP payments |
 
@@ -132,12 +136,13 @@ The API handlers are adapters only. Business logic belongs in `src/lib/`.
 
 ## MVP
 
-1. A user enters an objective.
-2. The agent creates a structured payment proposal.
-3. The policy engine evaluates it.
-4. An approved transaction is submitted to XRPL Testnet.
-5. Transaction confirmation and a hash are returned.
-6. The UI displays the full flow.
+1. A user enters a procurement objective and optional XRP budget.
+2. The scout returns matching catalog offers.
+3. The analyst filters and ranks quotes.
+4. Treasury creates a structured proposal for the selected vendor.
+5. Policy evaluates it independently and the user reviews the exact payment.
+6. An approved transaction is submitted to XRPL Testnet.
+7. The UI displays each handoff, confirmation, ledger index, and hash.
 
 ## Stretch goals
 
@@ -145,7 +150,6 @@ The following are explicitly outside the MVP:
 
 - x402 support
 - Machine-to-machine payments
-- Multiple cooperating agents
 - Human approval thresholds
 - Transaction history
 - Configurable budgets
