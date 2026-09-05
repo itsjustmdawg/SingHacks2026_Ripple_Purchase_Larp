@@ -49,6 +49,8 @@ type EscrowPhase =
   | "cancelling"
   | "cancelled";
 
+const INITIAL_VISIBLE_OFFERS = 3;
+
 export function PurchaseWorkspace({
   initialObjective,
 }: {
@@ -65,6 +67,7 @@ export function PurchaseWorkspace({
   const [confirmed, setConfirmed] = useState(false);
   const [copied, setCopied] = useState(false);
   const [verified, setVerified] = useState(false);
+  const [visibleOfferCount, setVisibleOfferCount] = useState(INITIAL_VISIBLE_OFFERS);
 
   // Escrow & Digital Safe state
   const [settlementMode, setSettlementMode] = useState<SettlementMode>("escrow");
@@ -101,6 +104,7 @@ export function PurchaseWorkspace({
     setEscrowResult(null);
     setDeliveryReceipt(null);
     setSecondsRemaining(null);
+    setVisibleOfferCount(INITIAL_VISIBLE_OFFERS);
   }
 
   async function loadWallet() {
@@ -389,6 +393,12 @@ export function PurchaseWorkspace({
                 ? 2
                 : 1;
 
+  const visibleOffers = result?.catalog.offers.slice(0, visibleOfferCount) ?? [];
+  const hiddenOfferCount = Math.max(
+    0,
+    (result?.catalog.offers.length ?? 0) - visibleOffers.length,
+  );
+
   return (
     <main id="main" className="wrap page-main">
       <WorkspaceNav />
@@ -397,6 +407,20 @@ export function PurchaseWorkspace({
         title="What can we take off your plate?"
         description="Give your team a clear objective. They’ll compare the options and bring a payment proposal back for your review."
       />
+      <div className="buyer-cues" aria-label="How Purchase LARP helps buyers">
+        <div>
+          <Sparkles size={18} />
+          <span>Say what you need</span>
+        </div>
+        <div>
+          <CheckCircle2 size={18} />
+          <span>Compare real choices</span>
+        </div>
+        <div>
+          <ShieldCheck size={18} />
+          <span>You approve first</span>
+        </div>
+      </div>
       <div className="purchase-progress">
         {[
           "Your objective",
@@ -535,7 +559,7 @@ export function PurchaseWorkspace({
                     )}
                   </div>
                   <div className="quote-list">
-                    {result.catalog.offers.map((o) => {
+                    {visibleOffers.map((o) => {
                       const selected =
                         result.analysis.selectedOffer?.id === o.id;
                       const evaluation = result.analysis.evaluations.find(
@@ -582,6 +606,23 @@ export function PurchaseWorkspace({
                       );
                     })}
                   </div>
+                  {result.catalog.offers.length > INITIAL_VISIBLE_OFFERS && (
+                    <button
+                      type="button"
+                      className="button button-ghost show-more-deals"
+                      onClick={() =>
+                        setVisibleOfferCount((count) =>
+                          hiddenOfferCount > 0
+                            ? Math.min(count + 3, result.catalog.offers.length)
+                            : INITIAL_VISIBLE_OFFERS,
+                        )
+                      }
+                    >
+                      {hiddenOfferCount > 0
+                        ? `See ${hiddenOfferCount} more deal${hiddenOfferCount === 1 ? "" : "s"}`
+                        : "Show fewer deals"}
+                    </button>
+                  )}
                 </>
               )}
               {result.policyDecision && (

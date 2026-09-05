@@ -1610,6 +1610,27 @@ h2 > span {
   gap: 10px;
   margin: 30px 0;
 }
+.buyer-cues {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 28px 0 12px;
+}
+.buyer-cues > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #ffffff04;
+  color: var(--text);
+  font-size: 12px;
+}
+.buyer-cues svg {
+  color: var(--amber);
+}
 .purchase-progress > div {
   display: flex;
   gap: 8px;
@@ -1818,6 +1839,10 @@ h2 > span {
 }
 .quote-selected .quote-footer {
   color: var(--amber);
+}
+.show-more-deals {
+  width: 100%;
+  margin-top: 14px;
 }
 .review-panel {
   margin-top: 24px;
@@ -2588,6 +2613,9 @@ h2 > span {
   .purchase-progress {
     gap: 6px;
     flex-wrap: wrap;
+  }
+  .buyer-cues {
+    grid-template-columns: 1fr;
   }
   .purchase-progress > div {
     font-size: 10px;
