@@ -29,6 +29,8 @@ export async function POST(request: Request) {
             timestamp: new Date().toISOString(),
           },
           {
+            // The fallback must not call the same unavailable provider again.
+            model: null,
             priceRange: {
               minXrp: plan.budget.minXrp,
               maxXrp: plan.budget.maxXrp,
