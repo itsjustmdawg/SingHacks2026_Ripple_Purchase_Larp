@@ -5,11 +5,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   AgentTraceEvent,
   CatalogOffer,
+  EscrowTransactionResult,
   MultiAgentPipelineResult,
   PaymentProposal,
   PolicyDecision,
   TransactionResult,
 } from "@/types";
+import type { VendorDeliveryReceipt } from "@/lib/catalog";
 
 type WorkflowStatus =
   | "idle"
@@ -18,6 +20,20 @@ type WorkflowStatus =
   | "submitting"
   | "confirmed"
   | "failed";
+
+type SettlementMode = "escrow" | "direct";
+
+type EscrowPhase =
+  | "none"
+  | "locking"
+  | "locked"
+  | "delivering"
+  | "delivered"
+  | "releasing"
+  | "finished"
+  | "cancelling"
+  | "cancelled";
+
 
 interface WalletInfo {
   address: string;
@@ -199,20 +215,41 @@ function createXrplTrace(
 function StageTracker({
   status,
   trace,
+  settlementMode,
+  escrowPhase,
 }: {
   status: WorkflowStatus;
   trace: AgentTraceEvent[];
+  settlementMode: SettlementMode;
+  escrowPhase: EscrowPhase;
 }) {
+  const isSettled =
+    status === "confirmed" ||
+    escrowPhase === "finished" ||
+    escrowPhase === "cancelled";
+
   const activeIndex = (() => {
-    if (status === "confirmed") return 6;
-    if (status === "review" || status === "submitting") return 5;
+    if (isSettled) return 6;
+    if (
+      status === "review" ||
+      status === "submitting" ||
+      escrowPhase !== "none"
+    )
+      return 5;
     if (status === "idle") return 1;
     if (trace.some((event) => event.agent === "xrpl_agent")) return 5;
     if (trace.some((event) => event.agent === "policy_engine")) return 4;
     if (trace.some((event) => event.agent === "deal_analyst")) return 3;
     return 2;
   })();
-  const stages = ["Objective", "Scout", "Analyst", "Policy", "XRPL"];
+  const stages = [
+    "Objective",
+    "Scout",
+    "Analyst",
+    "Policy",
+    settlementMode === "escrow" ? "Digital Safe" : "XRPL",
+  ];
+
 
   return (
     <ol className="grid grid-cols-5 gap-1" aria-label="Payment workflow">
@@ -372,6 +409,29 @@ export function PaymentDashboard() {
   const [reviewConfirmed, setReviewConfirmed] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Escrow & Digital Safe state
+  const [settlementMode, setSettlementMode] = useState<SettlementMode>("escrow");
+  const [pitchSeconds, setPitchSeconds] = useState<number>(30);
+  const [escrowPhase, setEscrowPhase] = useState<EscrowPhase>("none");
+  const [escrowResult, setEscrowResult] = useState<EscrowTransactionResult | null>(null);
+  const [deliveryReceipt, setDeliveryReceipt] = useState<VendorDeliveryReceipt | null>(null);
+  const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (secondsRemaining === null || secondsRemaining <= 0) return;
+    const timer = setInterval(() => {
+      setSecondsRemaining((prev) => {
+        if (prev === null || prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [secondsRemaining]);
+
+
   const loadWallet = useCallback(async () => {
     setWalletLoading(true);
     setWalletError(null);
@@ -423,7 +483,9 @@ export function PaymentDashboard() {
     proposal?.action === "payment" &&
     policy?.approved === true &&
     reviewConfirmed &&
-    status !== "submitting";
+    status !== "submitting" &&
+    escrowPhase === "none";
+
 
   const amountShare = useMemo(() => {
     if (!proposal || !wallet?.spendableXrp || wallet.spendableXrp <= 0) return 0;
@@ -579,6 +641,217 @@ export function PaymentDashboard() {
     }
   }
 
+  async function lockEscrow() {
+    if (!proposal || !canSubmit) return;
+
+    setStatus("submitting");
+    setEscrowPhase("locking");
+    setEscrowResult(null);
+    setDeliveryReceipt(null);
+    setTransaction(null);
+    setVerification(null);
+    setError(null);
+
+    setTrace((current) => [
+      ...current.filter((event) => event.agent !== "xrpl_agent"),
+      createXrplTrace(
+        proposal.id,
+        "working",
+        `Locking ${formatXrp(proposal.amount)} XRP in native XRPL Escrow safe (auto-refund window: ${pitchSeconds}s)…`,
+      ),
+    ]);
+
+    try {
+      const response = await fetch("/api/transaction/escrow", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create",
+          proposal,
+          cancelAfterSeconds: pitchSeconds,
+          reason: proposal.reason,
+        }),
+      });
+
+      const body: unknown = await response.json();
+      if (!response.ok) {
+        throw new Error(getResponseError(body, "Escrow creation failed on XRPL Testnet."));
+      }
+
+      const res = body as EscrowTransactionResult;
+      setEscrowResult(res);
+      setEscrowPhase("delivering");
+      setSecondsRemaining(pitchSeconds);
+
+      setTrace((current) => [
+        ...current.filter((event) => event.agent !== "xrpl_agent"),
+        createXrplTrace(
+          proposal.id,
+          "working",
+          `Escrow locked on XRPL! Sequence #${res.escrowSequence ?? "—"} (tx: ${compactAddress(res.hash ?? "")}). Awaiting service delivery…`,
+        ),
+      ]);
+
+      void loadWallet();
+
+      // Automatically simulate provider delivery
+      try {
+        const deliverResponse = await fetch("/api/catalog/deliver", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ offerId: proposal.id }),
+        });
+        if (deliverResponse.ok) {
+          const receipt = (await deliverResponse.json()) as VendorDeliveryReceipt;
+          setDeliveryReceipt(receipt);
+          setEscrowPhase("delivered");
+          setTrace((current) => [
+            ...current.filter((event) => event.agent !== "xrpl_agent"),
+            createXrplTrace(
+              proposal.id,
+              "confirmed",
+              `Service delivery verified: Encrypted access token received. Escrow ready for release or dispute.`,
+            ),
+          ]);
+        }
+      } catch {
+        setEscrowPhase("locked");
+      }
+    } catch (caught) {
+      setStatus("failed");
+      setEscrowPhase("none");
+      const message =
+        caught instanceof Error ? caught.message : "Unable to lock escrow.";
+      setTrace((current) => [
+        ...current.filter((event) => event.agent !== "xrpl_agent"),
+        createXrplTrace(proposal.id, "failed", `Escrow lock failed: ${message}`),
+      ]);
+      setError(message);
+    }
+  }
+
+  async function releaseEscrow() {
+    if (!proposal || !escrowResult?.escrowSequence) return;
+
+    setEscrowPhase("releasing");
+    setError(null);
+
+    setTrace((current) => [
+      ...current.filter((event) => event.agent !== "xrpl_agent"),
+      createXrplTrace(
+        proposal.id,
+        "working",
+        `Submitting EscrowFinish to release ${formatXrp(proposal.amount)} XRP to seller…`,
+      ),
+    ]);
+
+    try {
+      const response = await fetch("/api/transaction/escrow", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "finish",
+          proposalId: proposal.id,
+          escrowSequence: escrowResult.escrowSequence,
+          reason: `Service verified: ${deliveryReceipt?.credentialId ?? proposal.id}`,
+        }),
+      });
+
+      const body: unknown = await response.json();
+      if (!response.ok) {
+        throw new Error(getResponseError(body, "Failed to release escrow on XRPL."));
+      }
+
+      const res = body as EscrowTransactionResult;
+      setEscrowResult(res);
+      setEscrowPhase("finished");
+      setStatus("confirmed");
+
+      setTrace((current) => [
+        ...current.filter((event) => event.agent !== "xrpl_agent"),
+        createXrplTrace(
+          proposal.id,
+          "confirmed",
+          `Escrow finished! Funds released to seller on Testnet (tx: ${compactAddress(res.hash ?? "")}). Service active.`,
+        ),
+      ]);
+
+      void loadWallet();
+    } catch (caught) {
+      const message =
+        caught instanceof Error ? caught.message : "Failed to release escrow.";
+      setError(message);
+      setEscrowPhase("delivered");
+    }
+  }
+
+  async function cancelEscrow(isSimulatedGhosting = false) {
+    if (!proposal || !escrowResult?.escrowSequence) return;
+
+    setEscrowPhase("cancelling");
+    setError(null);
+
+    if (isSimulatedGhosting) {
+      setDeliveryReceipt({
+        credentialId: `sim-fail-${Date.now()}`,
+        accessKey: "",
+        serviceEndpoint: "https://vendor.mock/offline",
+        deliveredAt: new Date().toISOString(),
+        status: "failed",
+        details:
+          "Simulated seller dropout: Vendor endpoint unreachable. Triggering automatic refund guarantee.",
+      });
+    }
+
+    setTrace((current) => [
+      ...current.filter((event) => event.agent !== "xrpl_agent"),
+      createXrplTrace(
+        proposal.id,
+        "working",
+        `Seller failure confirmed. Submitting EscrowCancel to refund ${formatXrp(proposal.amount)} XRP…`,
+      ),
+    ]);
+
+    try {
+      const response = await fetch("/api/transaction/escrow", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "cancel",
+          proposalId: proposal.id,
+          escrowSequence: escrowResult.escrowSequence,
+          reason: "Cancellation & refund: delivery timeout or non-delivery.",
+        }),
+      });
+
+      const body: unknown = await response.json();
+      if (!response.ok) {
+        throw new Error(getResponseError(body, "Failed to cancel escrow on XRPL."));
+      }
+
+      const res = body as EscrowTransactionResult;
+      setEscrowResult(res);
+      setEscrowPhase("cancelled");
+      setStatus("confirmed");
+
+      setTrace((current) => [
+        ...current.filter((event) => event.agent !== "xrpl_agent"),
+        createXrplTrace(
+          proposal.id,
+          "confirmed",
+          `Escrow cancelled! 100% of ${formatXrp(proposal.amount)} XRP returned to your wallet. tx: ${compactAddress(res.hash ?? "")}.`,
+        ),
+      ]);
+
+      void loadWallet();
+    } catch (caught) {
+      const message =
+        caught instanceof Error ? caught.message : "Failed to cancel escrow.";
+      setError(message);
+      setEscrowPhase("locked");
+    }
+  }
+
   function resetWorkflow() {
     setStatus("idle");
     setPipeline(null);
@@ -589,7 +862,12 @@ export function PaymentDashboard() {
     setVerification(null);
     setReviewConfirmed(false);
     setError(null);
+    setEscrowPhase("none");
+    setEscrowResult(null);
+    setDeliveryReceipt(null);
+    setSecondsRemaining(null);
   }
+
 
   return (
     <main className="min-h-screen overflow-hidden bg-[#07101f] text-slate-100">
@@ -818,8 +1096,14 @@ export function PaymentDashboard() {
         </section>
 
         <section className="mt-5 rounded-2xl border border-white/8 bg-[#0b1628]/60 px-4 py-5 sm:px-8">
-          <StageTracker status={status} trace={trace} />
+          <StageTracker
+            status={status}
+            trace={trace}
+            settlementMode={settlementMode}
+            escrowPhase={escrowPhase}
+          />
         </section>
+
 
         <section className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.65fr)]">
           <article className="rounded-2xl border border-white/10 bg-[#0b1628]/90 p-5 sm:p-6">
@@ -1001,9 +1285,92 @@ export function PaymentDashboard() {
                   ))}
                 </ul>
 
-                {policy.approved && !transaction ? (
+                {policy.approved && !transaction && escrowPhase === "none" ? (
                   <div className="mt-4 rounded-xl border border-cyan-300/15 bg-cyan-300/[0.035] p-4">
-                    <label className="flex cursor-pointer items-start gap-3 text-xs leading-5 text-slate-300">
+                    {/* Settlement Protection Selector */}
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      Settlement Mode
+                    </p>
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <button
+                        className={`rounded-xl border p-3 text-left transition ${
+                          settlementMode === "escrow"
+                            ? "border-cyan-400 bg-cyan-400/[0.08] shadow-[0_0_12px_rgba(34,211,238,0.1)]"
+                            : "border-white/8 bg-white/[0.02] opacity-60 hover:opacity-100"
+                        }`}
+                        onClick={() => setSettlementMode("escrow")}
+                        type="button"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-white">
+                            Digital Safe
+                          </span>
+                          <span className="rounded bg-emerald-400/20 px-1.5 py-0.5 text-[9px] font-bold text-emerald-300 uppercase">
+                            Protected
+                          </span>
+                        </div>
+                        <p className="mt-1 text-[10px] leading-4 text-slate-400">
+                          Funds locked in XRPL Escrow. Auto-refunds if seller ghosts.
+                        </p>
+                      </button>
+
+                      <button
+                        className={`rounded-xl border p-3 text-left transition ${
+                          settlementMode === "direct"
+                            ? "border-cyan-400 bg-cyan-400/[0.08] shadow-[0_0_12px_rgba(34,211,238,0.1)]"
+                            : "border-white/8 bg-white/[0.02] opacity-60 hover:opacity-100"
+                        }`}
+                        onClick={() => setSettlementMode("direct")}
+                        type="button"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-white">
+                            Direct Payment
+                          </span>
+                          <span className="rounded bg-amber-400/20 px-1.5 py-0.5 text-[9px] font-bold text-amber-300 uppercase">
+                            Instant
+                          </span>
+                        </div>
+                        <p className="mt-1 text-[10px] leading-4 text-slate-400">
+                          Direct transfer. Irreversible on ledger confirmation.
+                        </p>
+                      </button>
+                    </div>
+
+                    {/* 3-Minute Pitch Lock Window Selector */}
+                    {settlementMode === "escrow" ? (
+                      <div className="mt-3 flex items-center justify-between rounded-lg bg-black/25 px-3 py-2 text-xs">
+                        <span className="text-slate-400">
+                          Auto-Refund Window:
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            className={`rounded px-2 py-1 text-[10px] font-bold transition ${
+                              pitchSeconds === 30
+                                ? "bg-cyan-400 text-slate-950 shadow-sm"
+                                : "bg-white/5 text-slate-400 hover:text-white"
+                            }`}
+                            onClick={() => setPitchSeconds(30)}
+                            type="button"
+                          >
+                            30s (Pitch Demo)
+                          </button>
+                          <button
+                            className={`rounded px-2 py-1 text-[10px] font-bold transition ${
+                              pitchSeconds === 300
+                                ? "bg-cyan-400 text-slate-950 shadow-sm"
+                                : "bg-white/5 text-slate-400 hover:text-white"
+                            }`}
+                            onClick={() => setPitchSeconds(300)}
+                            type="button"
+                          >
+                            5m (Standard)
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    <label className="mt-3.5 flex cursor-pointer items-start gap-3 text-xs leading-5 text-slate-300">
                       <input
                         checked={reviewConfirmed}
                         className="mt-0.5 h-4 w-4 rounded border-slate-600 bg-slate-900 accent-cyan-300"
@@ -1012,26 +1379,320 @@ export function PaymentDashboard() {
                         type="checkbox"
                       />
                       <span>
-                        I reviewed the exact recipient and amount. Authorize this
-                        payment on <strong className="font-semibold text-cyan-200">XRPL Testnet</strong>.
+                        {settlementMode === "escrow" ? (
+                          <>
+                            I reviewed the proposal. Lock{" "}
+                            <strong className="font-semibold text-cyan-200">
+                              {formatXrp(proposal?.amount)} XRP
+                            </strong>{" "}
+                            into the on-chain{" "}
+                            <strong className="font-semibold text-cyan-200">
+                              XRPL Digital Safe
+                            </strong>{" "}
+                            with auto-refund guarantee.
+                          </>
+                        ) : (
+                          <>
+                            I reviewed the exact recipient and amount. Authorize
+                            direct payment on{" "}
+                            <strong className="font-semibold text-cyan-200">
+                              XRPL Testnet
+                            </strong>
+                            .
+                          </>
+                        )}
                       </span>
                     </label>
+
                     {proposal && wallet ? (
                       <div className="mt-3 h-1 overflow-hidden rounded-full bg-slate-800">
-                        <span className="block h-full rounded-full bg-cyan-400" style={{ width: `${amountShare}%` }} />
+                        <span
+                          className="block h-full rounded-full bg-cyan-400"
+                          style={{ width: `${amountShare}%` }}
+                        />
                       </div>
                     ) : null}
+
                     <button
                       className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 py-2.5 text-sm font-bold text-emerald-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
                       disabled={!canSubmit}
-                      onClick={() => void submitPayment()}
+                      onClick={() => {
+                        if (settlementMode === "escrow") {
+                          void lockEscrow();
+                        } else {
+                          void submitPayment();
+                        }
+                      }}
                       type="button"
                     >
                       {status === "submitting" ? <Spinner /> : <CheckIcon />}
-                      {status === "submitting" ? "Submitting to XRPL…" : `Authorize & pay ${formatXrp(proposal?.amount)} XRP`}
+                      {status === "submitting"
+                        ? settlementMode === "escrow"
+                          ? "Locking in XRPL Safe…"
+                          : "Submitting to XRPL…"
+                        : settlementMode === "escrow"
+                          ? `Lock in Digital Safe (${formatXrp(proposal?.amount)} XRP)`
+                          : `Authorize & pay ${formatXrp(proposal?.amount)} XRP`}
                     </button>
                   </div>
                 ) : null}
+
+                {/* Escrow Active / Delivered Lifecycle Card */}
+                {escrowPhase !== "none" ? (
+                  <div className="mt-4 space-y-3">
+                    {/* Locking Spinner */}
+                    {escrowPhase === "locking" ? (
+                      <div className="rounded-xl border border-cyan-300/20 bg-cyan-950/20 p-5 text-center">
+                        <div className="flex justify-center">
+                          <Spinner />
+                        </div>
+                        <p className="mt-3 text-sm font-semibold text-white">
+                          Locking funds in XRPL Escrow Safe…
+                        </p>
+                        <p className="mt-1 text-xs text-slate-400">
+                          Broadcasting EscrowCreate with on-chain audit memo
+                        </p>
+                      </div>
+                    ) : null}
+
+                    {/* Active Escrow Lock */}
+                    {escrowPhase === "locked" ||
+                    escrowPhase === "delivering" ||
+                    escrowPhase === "delivered" ||
+                    escrowPhase === "releasing" ||
+                    escrowPhase === "cancelling" ? (
+                      <div className="rounded-xl border border-amber-400/30 bg-amber-400/[0.04] p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-2.5">
+                            <span className="grid h-8 w-8 place-items-center rounded-lg bg-amber-400/15 text-sm">
+                              🔒
+                            </span>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h4 className="text-xs font-bold uppercase tracking-wider text-white">
+                                  Funds Locked in XRPL Escrow Safe
+                                </h4>
+                                {escrowResult?.escrowSequence ? (
+                                  <span className="rounded bg-amber-400/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-amber-300">
+                                    #{escrowResult.escrowSequence}
+                                  </span>
+                                ) : null}
+                              </div>
+                              <p className="mt-0.5 text-[11px] text-slate-400">
+                                Amount:{" "}
+                                <strong className="text-amber-200">
+                                  {formatXrp(proposal?.amount)} XRP
+                                </strong>{" "}
+                                · Unspendable by seller until verified
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="shrink-0 text-right">
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                              Auto-refund in
+                            </p>
+                            <p
+                              className={`font-mono text-xs font-bold ${
+                                secondsRemaining === 0
+                                  ? "text-rose-400"
+                                  : "text-amber-300"
+                              }`}
+                            >
+                              {secondsRemaining !== null
+                                ? `${secondsRemaining}s`
+                                : "—"}
+                            </p>
+                          </div>
+                        </div>
+
+                        {escrowResult?.hash ? (
+                          <div className="mt-3 flex items-center justify-between border-t border-white/5 pt-2 text-[11px] text-slate-400">
+                            <span>
+                              Ledger: {escrowResult.ledgerIndex ?? "validated"}
+                            </span>
+                            <a
+                              className="inline-flex items-center gap-1 font-mono text-[10px] text-cyan-300 hover:text-cyan-200"
+                              href={escrowResult.explorerUrl ?? "#"}
+                              rel="noreferrer"
+                              target="_blank"
+                            >
+                              {compactAddress(escrowResult.hash)} <ArrowIcon />
+                            </a>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    {/* Delivery Inspection & Stage Actions */}
+                    {(escrowPhase === "delivered" ||
+                      escrowPhase === "delivering" ||
+                      escrowPhase === "locked" ||
+                      escrowPhase === "releasing" ||
+                      escrowPhase === "cancelling") &&
+                    deliveryReceipt ? (
+                      <div
+                        className={`rounded-xl border p-4 transition ${
+                          deliveryReceipt.status === "failed"
+                            ? "border-rose-400/30 bg-rose-400/[0.04]"
+                            : "border-emerald-400/30 bg-emerald-400/[0.04]"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                            {deliveryReceipt.status === "failed"
+                              ? "Seller Delivery Failed"
+                              : "Service Delivery Verified"}
+                          </p>
+                          <span
+                            className={`rounded px-2 py-0.5 text-[9px] font-bold uppercase ${
+                              deliveryReceipt.status === "failed"
+                                ? "bg-rose-400/20 text-rose-300"
+                                : "bg-emerald-400/20 text-emerald-300"
+                            }`}
+                          >
+                            {deliveryReceipt.status === "failed"
+                              ? "Offline / Ghosted"
+                              : "Credentials Ready"}
+                          </span>
+                        </div>
+
+                        {deliveryReceipt.status === "delivered" ? (
+                          <div className="mt-2 space-y-1 font-mono text-xs text-slate-300">
+                            <p className="truncate text-[11px] text-slate-400">
+                              Token: {deliveryReceipt.accessKey}
+                            </p>
+                            <p className="truncate text-[11px] text-slate-400">
+                              Endpoint: {deliveryReceipt.serviceEndpoint}
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-xs text-rose-300">
+                            {deliveryReceipt.details}
+                          </p>
+                        )}
+
+                        <div className="mt-4 grid grid-cols-2 gap-2">
+                          <button
+                            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-400 px-3 py-2 text-xs font-bold text-slate-950 transition hover:bg-emerald-300 disabled:opacity-50"
+                            disabled={
+                              escrowPhase === "releasing" ||
+                              escrowPhase === "cancelling"
+                            }
+                            onClick={() => void releaseEscrow()}
+                            type="button"
+                          >
+                            {escrowPhase === "releasing" ? (
+                              <Spinner />
+                            ) : (
+                              <CheckIcon className="h-3.5 w-3.5" />
+                            )}
+                            Release Payment
+                          </button>
+
+                          <button
+                            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-rose-400/40 bg-rose-400/10 px-3 py-2 text-xs font-bold text-rose-200 transition hover:bg-rose-400/20 disabled:opacity-50"
+                            disabled={
+                              escrowPhase === "releasing" ||
+                              escrowPhase === "cancelling"
+                            }
+                            onClick={() => void cancelEscrow(true)}
+                            type="button"
+                          >
+                            {escrowPhase === "cancelling" ? (
+                              <Spinner />
+                            ) : (
+                              <span>🛡️</span>
+                            )}
+                            Simulate Ghost & Refund
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {/* Escrow Finished */}
+                    {escrowPhase === "finished" ? (
+                      <div className="rounded-xl border border-emerald-400/30 bg-emerald-400/[0.04] p-4">
+                        <div className="flex items-center gap-3">
+                          <span className="grid h-9 w-9 place-items-center rounded-full bg-emerald-400 text-emerald-950">
+                            <CheckIcon className="h-5 w-5" />
+                          </span>
+                          <div>
+                            <p className="text-sm font-semibold text-emerald-100">
+                              Payment Released & Service Active
+                            </p>
+                            <p className="text-[11px] text-emerald-200/60">
+                              Escrow #{escrowResult?.escrowSequence} completed
+                              in ledger {escrowResult?.ledgerIndex ?? "—"}
+                            </p>
+                          </div>
+                        </div>
+                        {escrowResult?.hash ? (
+                          <div className="mt-3 rounded-lg bg-black/20 p-2.5 font-mono text-[11px] text-slate-300">
+                            <p className="text-[9px] uppercase tracking-wider text-slate-500">
+                              Finish Hash
+                            </p>
+                            <p className="mt-0.5 truncate">
+                              {escrowResult.hash}
+                            </p>
+                          </div>
+                        ) : null}
+                        {escrowResult?.explorerUrl ? (
+                          <a
+                            className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-cyan-300 transition hover:text-cyan-200"
+                            href={escrowResult.explorerUrl}
+                            rel="noreferrer"
+                            target="_blank"
+                          >
+                            View validated finish transaction <ArrowIcon />
+                          </a>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    {/* Escrow Cancelled / Refunded */}
+                    {escrowPhase === "cancelled" ? (
+                      <div className="rounded-xl border border-cyan-400/30 bg-cyan-400/[0.04] p-4">
+                        <div className="flex items-center gap-3">
+                          <span className="grid h-9 w-9 place-items-center rounded-full bg-cyan-400 text-slate-950">
+                            <CheckIcon className="h-5 w-5" />
+                          </span>
+                          <div>
+                            <p className="text-sm font-semibold text-cyan-100">
+                              Escrow Cancelled: 100% Refunded
+                            </p>
+                            <p className="text-[11px] text-cyan-200/60">
+                              Zero loss. {formatXrp(proposal?.amount)} XRP
+                              restored directly to your spendable wallet.
+                            </p>
+                          </div>
+                        </div>
+                        {escrowResult?.hash ? (
+                          <div className="mt-3 rounded-lg bg-black/20 p-2.5 font-mono text-[11px] text-slate-300">
+                            <p className="text-[9px] uppercase tracking-wider text-slate-500">
+                              Cancellation Hash
+                            </p>
+                            <p className="mt-0.5 truncate">
+                              {escrowResult.hash}
+                            </p>
+                          </div>
+                        ) : null}
+                        {escrowResult?.explorerUrl ? (
+                          <a
+                            className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-cyan-300 transition hover:text-cyan-200"
+                            href={escrowResult.explorerUrl}
+                            rel="noreferrer"
+                            target="_blank"
+                          >
+                            View validated cancellation transaction{" "}
+                            <ArrowIcon />
+                          </a>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
 
                 {transaction ? (
                   <div className="mt-4 rounded-xl border border-emerald-300/15 bg-emerald-300/[0.04] p-4">
