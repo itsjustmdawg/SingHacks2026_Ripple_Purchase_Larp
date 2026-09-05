@@ -161,11 +161,13 @@ export interface OpenAIAgentModelOptions {
   apiKey: string;
   model?: string;
   baseURL?: string;
+  apiStyle?: "responses" | "chat_completions";
 }
 
 export class OpenAIAgentModel implements AgentDecisionModel {
   private readonly client: OpenAI;
   private readonly model: string;
+  private readonly apiStyle: "responses" | "chat_completions";
 
   constructor(options: OpenAIAgentModelOptions) {
     this.client = new OpenAI({
@@ -173,9 +175,34 @@ export class OpenAIAgentModel implements AgentDecisionModel {
       baseURL: options.baseURL,
     });
     this.model = options.model?.trim() || DEFAULT_MODEL;
+    this.apiStyle =
+      options.apiStyle ??
+      (options.baseURL?.includes("generativelanguage.googleapis.com")
+        ? "chat_completions"
+        : "responses");
   }
 
   async interpret(request: AgentRequest): Promise<AgentModelDecision> {
+    if (this.apiStyle === "chat_completions") {
+      const completion = await this.client.chat.completions.create({
+        model: this.model,
+        messages: [
+          { role: "system", content: AGENT_INSTRUCTIONS },
+          { role: "user", content: request.userMessage },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "xrpl_payment_decision",
+            strict: true,
+            schema: PAYMENT_DECISION_SCHEMA,
+          },
+        },
+      });
+      const output = completion.choices[0]?.message.content;
+      return parseAgentModelDecision(output);
+    }
+
     const response = await this.client.responses.create({
       model: this.model,
       instructions: AGENT_INSTRUCTIONS,
@@ -191,19 +218,23 @@ export class OpenAIAgentModel implements AgentDecisionModel {
       },
     });
 
-    if (!response.output_text) {
-      throw new AgentModelOutputError("Model returned no structured output.");
-    }
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(response.output_text);
-    } catch {
-      throw new AgentModelOutputError("Model returned invalid JSON.");
-    }
-
-    return validateAgentModelDecision(parsed);
+    return parseAgentModelDecision(response.output_text);
   }
+}
+
+function parseAgentModelDecision(output: string | null | undefined): AgentModelDecision {
+  if (!output) {
+    throw new AgentModelOutputError("Model returned no structured output.");
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(output);
+  } catch {
+    throw new AgentModelOutputError("Model returned invalid JSON.");
+  }
+
+  return validateAgentModelDecision(parsed);
 }
 
 export function createConfiguredAgentModel(
