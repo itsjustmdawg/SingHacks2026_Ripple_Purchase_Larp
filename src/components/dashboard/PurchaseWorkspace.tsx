@@ -77,7 +77,13 @@ export function PurchaseWorkspace({
   const lock = useRef(false);
 
   useEffect(() => {
-    if (secondsRemaining === null || secondsRemaining <= 0) return;
+    if (
+      secondsRemaining === null ||
+      secondsRemaining <= 0 ||
+      escrowPhase === "finished" ||
+      escrowPhase === "cancelled"
+    )
+      return;
     const timer = setInterval(() => {
       setSecondsRemaining((prev) => {
         if (prev === null || prev <= 1) {
@@ -88,7 +94,21 @@ export function PurchaseWorkspace({
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, [secondsRemaining]);
+  }, [secondsRemaining, escrowPhase]);
+
+  // When safe expires (secondsRemaining reaches 0), automatically execute refund on XRPL if not yet released
+  useEffect(() => {
+    if (
+      secondsRemaining === 0 &&
+      result?.proposal &&
+      escrowResult?.escrowSequence &&
+      (escrowPhase === "locked" || escrowPhase === "delivered") &&
+      !lock.current
+    ) {
+      void cancelEscrow(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [secondsRemaining, result?.proposal, escrowResult?.escrowSequence, escrowPhase]);
 
   function resetPlan(newObjective?: string) {
     if (typeof newObjective === "string") setObjective(newObjective);
@@ -243,6 +263,7 @@ export function PurchaseWorkspace({
       setEscrowResult(res);
       setEscrowPhase("delivering");
       setSecondsRemaining(pitchSeconds);
+      setPhase("review");
       void loadWallet();
 
       // Automatically simulate provider delivery
@@ -302,20 +323,34 @@ export function PurchaseWorkspace({
 
   async function cancelEscrow(simulateGhosting = false) {
     if (lock.current || !result?.proposal || !escrowResult?.escrowSequence) return;
-    lock.current = true;
-    setEscrowPhase("cancelling");
-    setError("");
 
-    if (simulateGhosting) {
+    if (simulateGhosting && secondsRemaining !== null && secondsRemaining > 5) {
       setDeliveryReceipt({
         credentialId: `sim-fail-${Date.now()}`,
         accessKey: "",
         serviceEndpoint: "https://offline-vendor.mock/timeout",
         deliveredAt: new Date().toISOString(),
         status: "failed",
-        details:
-          "Simulated seller dropout: Vendor endpoint unreachable. Triggering automatic refund guarantee.",
+        details: `Simulated seller dropout: Vendor endpoint unreachable. Automatic refund will execute on XRPL in ${secondsRemaining}s once the lock window expires.`,
       });
+      setEscrowPhase("locked");
+      return;
+    }
+
+    lock.current = true;
+    setEscrowPhase("cancelling");
+    setError("");
+
+    if (simulateGhosting || (!deliveryReceipt || deliveryReceipt.status !== "delivered")) {
+      setDeliveryReceipt((prev) => ({
+        credentialId: prev?.credentialId ?? `timeout-${Date.now()}`,
+        accessKey: "",
+        serviceEndpoint: prev?.serviceEndpoint ?? "https://offline-vendor.mock/timeout",
+        deliveredAt: new Date().toISOString(),
+        status: "failed",
+        details:
+          "Escrow safe expired: Automatic refund guarantee executed on XRPL.",
+      }));
     }
 
     try {
@@ -893,14 +928,16 @@ export function PurchaseWorkspace({
                           fontWeight: 600,
                           fontFamily: "monospace",
                           color:
-                            secondsRemaining === 0
+                            secondsRemaining === 0 || escrowPhase === "cancelling"
                               ? "var(--orange)"
                               : "var(--amber)",
                         }}
                       >
-                        {secondsRemaining !== null
-                          ? `${secondsRemaining}s`
-                          : "—"}
+                        {escrowPhase === "cancelling"
+                          ? "Refunding…"
+                          : secondsRemaining !== null
+                            ? `${secondsRemaining}s`
+                            : "—"}
                       </div>
                     </div>
                   </div>
