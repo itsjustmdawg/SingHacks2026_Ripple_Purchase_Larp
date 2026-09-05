@@ -21,6 +21,7 @@ describe("price interpretation", () => {
     ["min 0.001 BTC", { currency: "BTC", min: 0.001, max: null }],
     ["at least 10 USD", { currency: "USD", min: 10, max: null }],
     ["no more than 50 USD", { currency: "USD", min: null, max: 50 }],
+    ["not more than 200 SGD", { currency: "SGD", min: null, max: 200 }],
     [
       "not less than 20 EUR",
       { currency: "EUR", min: 20, max: null, minInclusive: true },

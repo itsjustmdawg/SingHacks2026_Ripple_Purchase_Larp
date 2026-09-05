@@ -122,7 +122,8 @@ export function parseSimplePrice(input: string): PriceIntent | null {
   )
     return null;
   const strictMin =
-    /\b(?:over|above|more than)\b/.test(s) && !s.includes("no more than");
+    /\b(?:over|above|more than)\b/.test(s) &&
+    !/\b(?:no|not) more than\b/.test(s);
   const strictMax =
     /\b(?:under|below|less than)\b/.test(s) &&
     !s.includes("not less than") &&
@@ -140,7 +141,7 @@ export function parseSimplePrice(input: string): PriceIntent | null {
     /\b(?:min|minimum|at least|from|over|above|more than|no less than|not less than)\b/.test(
       s,
     ) &&
-    !s.includes("no more than")
+    !/\b(?:no|not) more than\b/.test(s)
   )
     min = numbers[0];
   else max = numbers[0];
