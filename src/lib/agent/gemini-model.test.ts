@@ -1,13 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+import type { GeminiJsonGenerator } from "@/lib/gemini";
 
 import {
   AgentModelOutputError,
   createConfiguredAgentModel,
+  GeminiAgentModel,
   validateAgentModelDecision,
-} from "./openai-model";
+} from "./gemini-model";
 
 const ADDRESS = "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh";
-
 const validDecision = {
   action: "payment",
   recipient: ADDRESS,
@@ -59,12 +61,33 @@ describe("createConfiguredAgentModel", () => {
     expect(createConfiguredAgentModel({})).toBeNull();
   });
 
-  it("creates a model adapter when an API key is configured", () => {
+  it("accepts the explicit Gemini environment variable", () => {
     expect(
       createConfiguredAgentModel({
-        LLM_API_KEY: "test-key",
-        LLM_MODEL: "test-model",
+        GEMINI_API_KEY: "test-key",
+        GEMINI_MODEL: "gemini-test",
       }),
     ).not.toBeNull();
+  });
+
+});
+
+describe("GeminiAgentModel", () => {
+  it("requests structured output and validates it", async () => {
+    const generateJson = vi.fn().mockResolvedValue(validDecision);
+    const client: GeminiJsonGenerator = {
+      model: "gemini-test",
+      generateJson,
+    };
+    const model = new GeminiAgentModel(client);
+
+    await expect(
+      model.interpret({
+        id: "request-1",
+        userMessage: `Pay ${ADDRESS} 2.5 XRP for the selected data service.`,
+        timestamp: "2026-09-05T04:00:00.000Z",
+      }),
+    ).resolves.toEqual(validDecision);
+    expect(generateJson).toHaveBeenCalledOnce();
   });
 });

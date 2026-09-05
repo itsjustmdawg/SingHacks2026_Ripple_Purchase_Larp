@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node /Users/mahesha/Documents/singhacks/SingHacks2026_Ripple_Purchase_Larp/hook/agents/codex/stop-hook.mjs",
+            "command": "node hook/agents/codex/stop-hook.mjs",
             "timeout": 60
           }
         ]

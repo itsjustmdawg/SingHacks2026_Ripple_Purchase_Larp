@@ -1,10 +1,9 @@
-import OpenAI from "openai";
-
+import { createConfiguredGeminiClient } from "@/lib/gemini";
+import type { GeminiJsonGenerator } from "@/lib/gemini";
 import type { AgentRequest, PaymentAction } from "@/types";
 
 import type { AgentDecisionModel, AgentModelDecision } from "./model";
 
-const DEFAULT_MODEL = "gpt-5.6-luna";
 const PAYMENT_ACTIONS: readonly PaymentAction[] = [
   "payment",
   "request_payment",
@@ -23,38 +22,15 @@ const DECISION_FIELD_SET = new Set<string>(DECISION_FIELDS);
 const PAYMENT_DECISION_SCHEMA = {
   type: "object",
   properties: {
-    action: {
-      type: "string",
-      enum: PAYMENT_ACTIONS,
-    },
-    recipient: {
-      type: ["string", "null"],
-      description:
-        "The exact XRPL Classic address from the objective, or null when absent.",
-    },
-    amount: {
-      type: ["number", "null"],
-      description: "The exact XRP amount from the objective, or null when absent.",
-    },
-    reason: {
-      type: "string",
-      minLength: 1,
-      maxLength: 500,
-    },
-    confidence: {
-      type: "number",
-      minimum: 0,
-      maximum: 1,
-    },
+    action: { type: "string", enum: PAYMENT_ACTIONS },
+    recipient: { type: ["string", "null"] },
+    amount: { type: ["number", "null"] },
+    reason: { type: "string" },
+    confidence: { type: "number", minimum: 0, maximum: 1 },
   },
   required: DECISION_FIELDS,
   additionalProperties: false,
 } as const;
-
-const AGENT_INSTRUCTIONS = `You extract a proposed XRP payment action from a user objective.
-Return payment only for an explicit outbound payment, request_payment only when the user asks to collect or request money, and none when the objective is incomplete or ambiguous.
-Never invent an amount or recipient. Copy an XRPL Classic address and XRP amount exactly from the objective.
-Give a concise reason describing the decision. You only propose; a separate policy engine authorizes and an XRPL service executes.`;
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -69,7 +45,6 @@ function asRecord(value: unknown): UnknownRecord | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return null;
   }
-
   return value as UnknownRecord;
 }
 
@@ -157,66 +132,28 @@ export function validateAgentModelDecision(value: unknown): AgentModelDecision {
   };
 }
 
-export interface OpenAIAgentModelOptions {
-  apiKey: string;
-  model?: string;
-  baseURL?: string;
-}
-
-export class OpenAIAgentModel implements AgentDecisionModel {
-  private readonly client: OpenAI;
-  private readonly model: string;
-
-  constructor(options: OpenAIAgentModelOptions) {
-    this.client = new OpenAI({
-      apiKey: options.apiKey,
-      baseURL: options.baseURL,
-    });
-    this.model = options.model?.trim() || DEFAULT_MODEL;
-  }
+export class GeminiAgentModel implements AgentDecisionModel {
+  constructor(private readonly client: GeminiJsonGenerator) {}
 
   async interpret(request: AgentRequest): Promise<AgentModelDecision> {
-    const response = await this.client.responses.create({
-      model: this.model,
-      instructions: AGENT_INSTRUCTIONS,
-      input: request.userMessage,
-      store: false,
-      text: {
-        format: {
-          type: "json_schema",
-          name: "xrpl_payment_decision",
-          strict: true,
-          schema: PAYMENT_DECISION_SCHEMA,
-        },
-      },
-    });
+    const result = await this.client.generateJson(
+      `You extract a proposed XRP payment action from a user objective.
+Return payment only for an explicit outbound payment, request_payment only when
+the user asks to collect money, and none when the objective is incomplete.
+Never invent an amount or recipient. Copy values exactly. You only propose;
+policy and XRPL execution are separate systems.
 
-    if (!response.output_text) {
-      throw new AgentModelOutputError("Model returned no structured output.");
-    }
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(response.output_text);
-    } catch {
-      throw new AgentModelOutputError("Model returned invalid JSON.");
-    }
-
-    return validateAgentModelDecision(parsed);
+User objective:
+${JSON.stringify(request.userMessage)}`,
+      PAYMENT_DECISION_SCHEMA,
+    );
+    return validateAgentModelDecision(result);
   }
 }
 
 export function createConfiguredAgentModel(
   environment: Readonly<Record<string, string | undefined>> = process.env,
 ): AgentDecisionModel | null {
-  const apiKey = environment.LLM_API_KEY?.trim();
-  if (!apiKey) {
-    return null;
-  }
-
-  return new OpenAIAgentModel({
-    apiKey,
-    model: environment.LLM_MODEL,
-    baseURL: environment.LLM_BASE_URL,
-  });
+  const client = createConfiguredGeminiClient(environment);
+  return client ? new GeminiAgentModel(client) : null;
 }

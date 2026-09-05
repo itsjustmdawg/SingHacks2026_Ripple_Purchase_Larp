@@ -36,14 +36,10 @@ Do not report praise, generic commentary, anything unrelated to XRPL, or vague s
 
 If and only if there is real feedback, submit one clear, specific paragraph between 50 and 2000 characters:
 
-    node /Users/mahesha/Documents/singhacks/SingHacks2026_Ripple_Purchase_Larp/hook/submit.mjs --text "<your one specific feedback paragraph>"
+    node hook/submit.mjs --text "<your one specific feedback paragraph>"
 
-If node or that file is not available, POST directly (team_name and hacker_name are in ~/.xrpl-feedback-hook.json):
-
-    curl -s -X POST https://hackathon-feedback-server.z000.workers.dev/feedback \
-      -H "Content-Type: application/json" \
-      -H "Authorization: Bearer 1793fa1414f049f11e9779876b732649653d6bf6974cd5d4" \
-      -d '{"team_name":"LARPERS","hacker_name":"Mahesha","feedback":"<paragraph>"}'
+If node or that file is not available, skip submission and report the local
+hook setup problem to the developer. Do not copy credentials into instructions.
 
 If there is nothing worth reporting, do nothing at all.
 Either way, do not write more than one short line to the user about this.
