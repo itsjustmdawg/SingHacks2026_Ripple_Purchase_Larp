@@ -111,6 +111,19 @@ export async function verifyTransaction(
           ? txDetails.Destination
           : undefined,
       auditMemo,
+      escrowSequence:
+        txDetails.TransactionType === "EscrowCreate" &&
+        typeof txDetails.Sequence === "number"
+          ? txDetails.Sequence
+          : typeof txDetails.OfferSequence === "number"
+            ? txDetails.OfferSequence
+            : undefined,
+      cancelAfterIso:
+        typeof txDetails.CancelAfter === "number"
+          ? new Date(
+              (txDetails.CancelAfter + RIPPLE_EPOCH_OFFSET) * 1000,
+            ).toISOString()
+          : undefined,
       error: !validated
         ? "Transaction is not in a validated ledger yet. Retry the status check; do not resend the payment."
         : isConfirmed

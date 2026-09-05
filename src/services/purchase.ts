@@ -3,7 +3,11 @@ import type {
   PaymentProposal,
   TransactionResult,
   PolicyDecision,
+  EscrowTransactionResult,
 } from "@/types";
+import type { VendorDeliveryReceipt } from "@/lib/catalog";
+
+export type { EscrowTransactionResult, VendorDeliveryReceipt };
 export interface WalletView {
   address: string;
   balanceXrp: number;
@@ -13,6 +17,8 @@ export interface WalletView {
   isFunded: boolean;
 }
 export interface Receipt extends TransactionResult {
+  escrowAction?: "create" | "finish" | "cancel";
+  escrowSequence?: number | null;
   walletAddress?: string;
   objective: string;
   provider: string;
@@ -24,6 +30,7 @@ export class RequestError extends Error {
     message: string,
     public readonly status: number,
     public readonly nextStep: string = "Retry shortly. If this persists, check your connection and sign in again.",
+    public readonly transaction?: EscrowTransactionResult,
   ) {
     super(message);
   }
@@ -108,6 +115,101 @@ export const purchaseService = {
       body.error || "Verification unavailable.",
       response.status,
     );
+  },
+  lockEscrow: async (
+    proposal: PaymentProposal,
+    cancelAfterSeconds = 30,
+  ): Promise<EscrowTransactionResult & { policyDecision?: PolicyDecision }> => {
+    const response = await fetch("/api/transaction/escrow", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "create",
+        proposal,
+        cancelAfterSeconds,
+        reason: proposal.reason,
+      }),
+    });
+    const body = await response.json();
+    if (!response.ok) {
+      throw new RequestError(
+        body.error || "Failed to lock escrow on XRPL.",
+        response.status,
+        "Check the transaction status before retrying this ledger action.",
+        typeof body.transactionId === "string" ? body : undefined,
+      );
+    }
+    return body;
+  },
+  releaseEscrow: async (
+    proposalId: string,
+    escrowSequence: number,
+    reason?: string,
+  ): Promise<EscrowTransactionResult> => {
+    const response = await fetch("/api/transaction/escrow", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "finish",
+        proposalId,
+        escrowSequence,
+        reason: reason || `Service verified for proposal ${proposalId}`,
+      }),
+    });
+    const body = await response.json();
+    if (!response.ok) {
+      throw new RequestError(
+        body.error || "Failed to release escrow on XRPL.",
+        response.status,
+        "Check the transaction status before retrying this ledger action.",
+        typeof body.transactionId === "string" ? body : undefined,
+      );
+    }
+    return body;
+  },
+  cancelEscrow: async (
+    proposalId: string,
+    escrowSequence: number,
+    reason?: string,
+  ): Promise<EscrowTransactionResult> => {
+    const response = await fetch("/api/transaction/escrow", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "cancel",
+        proposalId,
+        escrowSequence,
+        reason: reason || "Seller non-delivery or cancellation guarantee.",
+      }),
+    });
+    const body = await response.json();
+    if (!response.ok) {
+      throw new RequestError(
+        body.error || "Failed to cancel escrow on XRPL.",
+        response.status,
+        "Check the transaction status before retrying this ledger action.",
+        typeof body.transactionId === "string" ? body : undefined,
+      );
+    }
+    return body;
+  },
+  deliver: async (
+    offerId: string,
+    simulateGhosting = false,
+  ): Promise<VendorDeliveryReceipt> => {
+    const response = await fetch("/api/catalog/deliver", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ offerId, simulateGhosting }),
+    });
+    const body = await response.json();
+    if (!response.ok) {
+      throw new RequestError(
+        body.error || "Failed to fetch delivery receipt.",
+        response.status,
+      );
+    }
+    return body as VendorDeliveryReceipt;
   },
 };
 const PENDING_KEY = "purchase-larp-pending-payment-v1";

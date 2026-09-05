@@ -1,0 +1,147 @@
+You are an elite pitch-deck designer and hackathon presentation coach. Generate a six-slide pitch deck and complete speaker script for a strict three-minute presentation at SingHacks 2026, Ripple Track: "AI-Native Business on XRPL".
+
+After the slide content and speaker script, provide the COMPLETE runnable Python script using python-pptx that creates pitch_deck.pptx. Do not provide pseudocode or a partial script.
+
+BRAND AND DESIGN — MATCH OUR ACTUAL WEBSITE
+Website: https://purchase-larp.vercel.app
+Brand: Purchase LARP
+Subtitle: Agentic Procurement & the XRPL Digital Safe
+Use Purchase LARP consistently; do not invent a different company name.
+
+Our website is premium orange-and-charcoal, NOT navy-and-cyan:
+- Background: #0A0B0D
+- Surface: #141618
+- Raised surface: #1B1D1F
+- Primary orange: #FF5A1F
+- Secondary amber: #FFB15A
+- Primary text: #F6F6F3
+- Secondary text: #A6A7AA
+- Muted labels: #85878C
+- Restrained success green: #8CD3B0
+- Subtle white separators around 10% opacity.
+
+Visual direction: confident, cinematic, editorial fintech. Use generous margins, bold oversized typography, restrained orange glow/vertical-light treatment, and dark negative space. Echo the website's orbital agent-core motif subtly. No race cars, F1 branding, cartoon robots, generic crypto coins, or unrelated stock imagery. Avoid overloading every slide with dashboard cards.
+
+Use 16:9 widescreen. Prefer Inter with Arial fallback. Titles 38–48 pt, opening title 50–60 pt, body 20–24 pt, essential footnotes at least 14 pt. One dominant message per slide, generally no more than 35 visible words, excluding diagram labels and source footnotes. Use editable shapes/text for simple process diagrams and avoid crossed connectors. Vary layouts while retaining a consistent grid and footer.
+
+COMMUNICATION GOAL
+Help judges understand that AI-assisted commerce needs separate discovery, deterministic financial authorization, and verifiable settlement. Demonstrate a working hackathon prototype without misrepresenting mock delivery or future security features as production guarantees.
+
+CORE PROBLEM
+1. AI can recommend products, but recommendations are not spending authority.
+2. Sending money to the wrong recipient or an unreliable seller creates financial and non-delivery risk.
+3. Businesses need spending rules, explicit approvals and auditable settlement before giving agents operational purchasing power.
+
+CENTRAL MESSAGE
+"AI proposes. Policy authorizes. XRPL settles."
+Our differentiator is separation of responsibilities, not simply calling the same model several times.
+
+CURRENT IMPLEMENTATION — USE THESE FACTS
+- Full-stack TypeScript, Next.js and React. Do not describe a Python/LangChain backend. Python is only used to generate this deck.
+- Two user-input fields: (1) item or need; (2) price requirement. Examples: "max 100 SGD", "between 20 and 50 EUR", "min 0.001 BTC".
+- Price interpretation preserves minimum/maximum constraints, converts supported currencies into XRP using dated daily reference rates, and asks for clarification when ambiguous. These are indicative conversions, not executable FX quotes or universal token support.
+- Market Scout: Gemini-assisted discovery. The original Testnet catalog is explicitly simulated.
+- Deal Analyst: Gemini-assisted comparison, with deterministic validation of allowed offers and price bounds. Demo catalog metrics such as uptime, latency and reliability are sample metadata, not independently measured vendor performance.
+- Treasury: deterministic quote-to-payment-proposal conversion.
+- Policy: independent server-side checks for spending limits, valid XRPL addresses and approval rules; the payment boundary rechecks authorization.
+- XRPL: Testnet payment and native escrow transaction routes, with structured results, ledger verification and explorer links.
+- On-chain audit memos use agent/payment-audit; SourceTag is 20260530.
+- Professional website includes login, marketplace, agent profiles, launch flow, purchase workspace and activity/receipts.
+- Research retries, error-specific next steps, read-only transaction-status retries and browser-persisted recovery are implemented. Do not call this distributed exactly-once settlement.
+- Latest combined verification: 286 automated tests passed, plus type checking, lint and production build. This is NOT a measured 100% coverage claim. Update the count only if a later verified test run is supplied.
+
+HONEST LIMITATIONS — DO NOT REMOVE OR CONTRADICT
+- Web discovery via Gemini Google Search grounding is implemented, but the configured account returned 429 RESOURCE_EXHAUSTED in verification. Do not claim automated live-web research is currently verified operational. The UI explains the account/quota requirement and offers an external Google Shopping link. Do not describe that external link as agent browsing.
+- Arbitrary web listings are not connected to merchant XRPL checkout addresses. Never imply a Testnet transfer purchases a real retail product.
+- The delivery/API-credential service is simulated. No independent production delivery oracle exists.
+- Current Digital Safe uses time-based EscrowCreate with FinishAfter and CancelAfter. It is NOT a delivery-conditioned cryptographic escrow.
+- The ledger does not inspect a delivery receipt. The prototype demonstrates the application workflow, not trustless proof of product delivery.
+- EscrowFinish and EscrowCancel are separate submitted transactions. Reaching the timeout does not automatically return funds. A cancellation actor must submit EscrowCancel after eligibility.
+- Cancellation returns escrow principal; transaction fees are not refunded.
+- Do not claim "zero counterparty risk", "100% refund guarantee", "mathematically eliminates disputes", or "the seller cannot receive funds until delivery is verified".
+- The live website is a shared-account Testnet hackathon prototype, not audited mainnet financial infrastructure.
+- Do not invent customer traction, revenue, latency measurements, team credentials, test coverage, transaction hashes, ledger numbers, screenshots or partnerships.
+
+Position the Digital Safe as a settlement-control prototype and an explicit next step toward delivery-conditioned procurement. Explain limitations briefly and confidently, without making the deck a bug report.
+
+STRICT RUN OF SHOW — EXACTLY SIX SLIDES
+The six time allocations below total 180 seconds. Do not force every slide into 25–30 seconds; that would conflict with the longer architecture and escrow sections. Aim for approximately 350–380 spoken words overall, leaving room for pauses. Actual timing requires rehearsal; never promise that text alone guarantees exact delivery speed.
+
+Slide 1 — 0:00–0:25 (25s)
+Title and hook: "When AI starts buying, who holds the keys?"
+Minimal Purchase LARP branding, track identification and a striking orange/charcoal composition.
+Introduce the tension between intelligent recommendations and accountable spending.
+
+Slide 2 — 0:25–0:55 (30s)
+The trust gap: spending authority, counterparty risk and non-delivery.
+Explain why an AI recommendation cannot serve as a payment approval.
+Use a simple contrast, not unsupported market statistics.
+
+Slide 3 — 0:55–1:30 (35s)
+Architecture: Scout → Analyst → Treasury → Policy → XRPL.
+Distinguish Gemini reasoning from deterministic checks and signing.
+Include the two-field item/price experience and original-currency-to-XRP interpretation.
+Show human review as a separate checkpoint, not a sixth autonomous model.
+Keep the agent pipeline diagram readable from the back of the room.
+
+Slide 4 — 1:30–2:05 (35s)
+Digital Safe: "Separate committing funds from releasing them."
+Show:
+EscrowCreate → funds locked → application delivery check (simulated)
+→ eligible EscrowFinish, OR after deadline a submitted EscrowCancel.
+Clearly label the implemented mechanism "time-based Testnet escrow prototype".
+Say that verified fulfillment conditions and a trusted delivery mechanism are the next engineering step. Never label cancellation "automatic refund".
+
+Slide 5 — 2:05–2:35 (30s)
+What we built and what judges can inspect.
+Show a real supplied screenshot of the two-field workspace or escrow panel; if none is supplied, use a clearly labeled screenshot placeholder rather than fabricating UI evidence.
+Highlight the deployed website, source-linked/explicitly labeled research modes, deterministic policy checks, audit memos and Testnet transaction receipts.
+Use "286 automated tests passing", not "100% test coverage".
+Insert only transaction proof supplied and verified by the team. Otherwise leave the proof out.
+Keep any demo inside this 30-second allocation; do not add a separate unbudgeted demo.
+
+Slide 6 — 2:35–3:00 (25s)
+Vision: accountable agentic commerce.
+Label RLUSD settlement, x402 machine-to-machine payments, merchant checkout integration, trustworthy delivery attestations and durable transaction recovery as ROADMAP.
+Select two or three priorities, not a wall of speculative features.
+Close with "AI proposes. Policy authorizes. XRPL settles."
+Include the website and a clear invitation to inspect the demo.
+
+FOR EACH SLIDE, OUTPUT
+1. Slide number, time window and duration.
+2. A takeaway-style title.
+3. Exact audience-facing text.
+4. Visual layout description consistent with our website.
+5. Natural spoken script, with approximate word count.
+6. Speaker notes identifying any demo assumption or limitation relevant to that slide.
+Keep timing and production instructions out of visible slide content.
+
+PYTHON GENERATION REQUIREMENTS
+- Provide installation/run commands and one complete Python 3 script using python-pptx.
+- Running it must create pitch_deck.pptx with exactly six 16:9 slides.
+- Use reusable helpers for text, spacing, backgrounds, restrained callouts and simple connectors.
+- Preserve editable text; do not flatten the deck into six images.
+- Include the full speaker scripts and time allocations in slide notes.
+- Handle optional screenshot files safely. Missing assets must not crash the script or produce fabricated evidence.
+- Use stable system fonts if Inter is unavailable.
+- Do not require network access, API keys or paid services at generation time.
+- No text clipping, off-slide objects, tiny diagram labels or unreadable low-contrast text.
+- Add a basic geometry validation pass and state that visual inspection and rehearsal are still required.
+- Save the output path clearly at completion.
+- Include sources in speaker notes, not an extra seventh slide.
+- If you can execute and render the deck, inspect every slide and fix overflow before delivery. Otherwise do not claim rendering or visual QA occurred.
+
+REFERENCE SOURCES FOR TECHNICAL ACCURACY
+- Website: https://purchase-larp.vercel.app
+- XRPL escrow concepts: https://xrpl.org/docs/concepts/payment-types/escrow
+- XRPL cancellation: https://xrpl.org/docs/references/protocol/transactions/types/escrowcancel
+- Reliable transaction submission: https://xrpl.org/docs/concepts/transactions/reliable-transaction-submission
+- Gemini Search grounding/pricing: https://ai.google.dev/gemini-api/docs/pricing
+- Currency reference-rate provider: https://github.com/fawazahmed0/exchange-api
+
+OUTPUT ORDER
+A. Complete six-slide content and timed speaker script.
+B. Complete ready-to-run python-pptx script.
+C. A concise rehearsal and technical-truth checklist.
+
+Do not ask broad design questions; the brand, audience, scope, timing and factual boundaries above are the requirements.

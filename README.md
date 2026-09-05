@@ -6,6 +6,21 @@ independent policy decision, and verifiable XRP Ledger (XRPL) settlement.
 
 ## Website and demo login
 
+### XRPL Digital Safe prototype
+
+Latest main's native EscrowCreate, EscrowFinish and EscrowCancel routes and UI are
+integrated with the two-field Testnet demo. The busy-state lock after creation is
+fixed; cancellation eligibility is displayed from the actual returned deadline.
+Browser-persisted escrow state supports reload recovery, and lost responses must
+be reconciled before a new ledger action. The delivery service is **simulated**.
+
+Important: this implementation uses time-based escrow with FinishAfter and
+CancelAfter, not a delivery-conditioned cryptographic escrow. The ledger does
+not independently verify delivery, and the API does not establish a trusted
+delivery oracle. Refunds require someone to submit EscrowCancel after eligibility;
+they do not occur automatically at timeout. Fees are not refunded. Do not pitch
+this as zero-risk, automatic dispute resolution, or production delivery protection.
+
 ### Item + price research
 
 The workspace and Launch flow now use **two separate text fields**: the item or
