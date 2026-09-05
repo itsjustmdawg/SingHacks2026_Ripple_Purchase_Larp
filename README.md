@@ -1,8 +1,35 @@
-# Autonomous Agentic Payments System
+# Purchase LARP — Autonomous Agentic Payments
 
 A multi-agent procurement workflow that turns a user objective into catalog
 research, a scored vendor selection, a structured payment proposal, an
 independent policy decision, and verifiable XRP Ledger (XRPL) settlement.
+
+## Website and demo login
+
+The orange/charcoal responsive website includes Home, Marketplace, Agents,
+agent profiles, Developers, a three-step Launch flow, Purchase Workspace,
+Team, and Activity. The frontend uses TypeScript, React and Next.js; the existing
+Gemini, deterministic policy and XRPL backend remains TypeScript too.
+
+Configure `AUTH_SECRET` (random, at least 32 characters), `DEMO_LOGIN_EMAIL`, and
+`DEMO_LOGIN_PASSWORD` in `.env.local`, then visit `/login`. Credentials are not
+checked into this repository. Sessions use signed, expiring HttpOnly cookies;
+workspace pages and non-auth APIs require login. This is a **shared hackathon
+workspace**, not individual accounts or production-ready identity management.
+
+Start with “Find the best chair under 5 XRP”. Research does not send money.
+Read the specialist summaries and policy checks, then explicitly approve the
+displayed Testnet recipient and amount. Activity stores public receipts in this
+browser and supports independent transaction-hash lookup. No payment is retried
+automatically after an uncertain response.
+
+Catalog products, advertised reliability and features are **demo data**. Gemini
+calls and validated Testnet settlement are real when available; deterministic
+fallback is explicitly labeled. No real product is delivered. Policy budgets
+remain environment-configured snapshots, not a persistent accounting system.
+The login rate limiter is instance-local, not distributed abuse protection.
+
+See [Vercel setup and smoke tests](docs/hosting.md) for hosting instructions.
 
 ## Problem
 
@@ -106,7 +133,9 @@ exception.
 | `GEMINI_MODEL` | Gemini model ID; defaults to `gemini-3.6-flash` |
 | `XRPL_NETWORK` | Ledger network; defaults to `testnet` |
 | `XRPL_RPC_URL` | Optional WebSocket override; blank uses the official network endpoint |
-| `XRPL_WALLET_SEED` | Optional persistent Testnet wallet; blank auto-funds a temporary wallet |
+| `XRPL_WALLET_SEED` | Required for hosting: stable Testnet wallet; blank is local-only temporary faucet mode |
+| `AUTH_SECRET` | Random session-signing secret, at least 32 characters |
+| `DEMO_LOGIN_EMAIL` / `DEMO_LOGIN_PASSWORD` | Shared demo login credentials |
 | `POLICY_TRANSACTION_LIMIT_XRP` | Maximum XRP allowed for one proposal |
 | `POLICY_REMAINING_BUDGET_XRP` | Current server-owned spending budget |
 | `POLICY_APPROVAL_THRESHOLD_XRP` | Amount requiring additional approval evidence |
@@ -114,13 +143,13 @@ exception.
 Never commit wallet seeds, private keys, or API credentials. Do not use
 production or mainnet credentials during early development.
 
-Only `GEMINI_API_KEY` is required for the model-backed demo. The same key is
+`GEMINI_API_KEY` powers the model-backed demo, alongside the login settings above. The same key is
 shared by the Scout and Analyst, which make separate structured Gemini calls.
 Treasury and Policy intentionally do not use a model, and signing stays inside
 the XRPL service. For local Testnet use, `XRPL_RPC_URL` and `XRPL_WALLET_SEED`
 may remain blank. The app then uses the official Testnet endpoint and requests a
 temporary faucet-funded wallet. Configure a Testnet seed as a deployment secret
-only when the demo needs the same wallet address across restarts.
+for every hosted deployment so different serverless routes use the same account.
 
 ## API boundaries
 
@@ -131,7 +160,8 @@ only when the demo needs the same wallet address across restarts.
 | `POST /api/policy` | `PaymentProposal` | Returns a `PolicyDecision` using temporary development rules |
 | `POST /api/transaction` | `PaymentProposal` | Re-authorizes the proposal server-side, then submits approved XRP payments |
 
-The API handlers are adapters only. Business logic belongs in `src/lib/`.
+All non-auth API requests require the signed demo session cookie. The API
+handlers are adapters only. Business logic belongs in `src/lib/`.
 
 ## Development principles
 

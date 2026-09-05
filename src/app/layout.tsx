@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 
-import "./globals.css";
+import "@/styles/brand.css";
+import { Navigation } from '@/components/layout/Navigation';
+import { Footer } from '@/components/layout/Footer';
 
 export const metadata: Metadata = {
   title: {
@@ -18,7 +20,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body><a className="skip-link" href="#main">Skip to content</a><Navigation/>{children}<Footer/></body>
     </html>
   );
 }
